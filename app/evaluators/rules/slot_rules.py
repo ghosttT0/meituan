@@ -14,5 +14,5 @@ class RequiredSlotRule(Rule):
             passed=not missing,
             score_delta=1.0 if not missing else 0.0,
             evidence_turn_ids=[event.turn_id for event in events if event.event_type == "slot_fill"],
-            reason="all required slots filled" if not missing else f"missing slots: {', '.join(missing)}",
+            reason="已收集全部必填信息" if not missing else f"缺少必填信息：{', '.join(missing)}",
         )

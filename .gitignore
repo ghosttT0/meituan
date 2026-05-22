@@ -9,3 +9,4 @@ batch_summary.csv
 .superpowers/
 uvicorn-demo.log
 uvicorn-demo.err.log
+.env

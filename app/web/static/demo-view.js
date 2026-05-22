@@ -9,6 +9,17 @@ import {
 
 export { PRESET_CASES, applyPreset, createInitialState, switchMode, switchRunMode };
 
+const RULE_LABELS = {
+  required_steps: "必做步骤",
+  required_slots: "必填信息",
+  forbidden_actions: "禁止项",
+};
+
+const DIMENSION_LABELS = {
+  task_focus: "任务聚焦度",
+  explanation_quality: "解释充分性",
+};
+
 export function buildScoreCards(result) {
   const labels = {
     flow_following: "流程遵循",
@@ -50,11 +61,11 @@ export function buildAccordionSections(result) {
       body: item.quote,
     })),
     rules: (result.rule_results ?? []).map((item) => ({
-      title: item.rule_id,
+      title: RULE_LABELS[item.rule_id] ?? item.rule_id,
       body: `${item.passed ? "通过" : "未通过"}：${item.reason}`,
     })),
     judge: (result.judge_results ?? []).map((item) => ({
-      title: item.dimension_id,
+      title: DIMENSION_LABELS[item.dimension_id] ?? item.dimension_id,
       body: `${Math.round(item.score * 100)} 分：${item.reason}`,
     })),
     simulation,

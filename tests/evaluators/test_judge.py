@@ -29,3 +29,4 @@ def test_rubric_judge_returns_structured_scores() -> None:
 
     assert results[0].dimension_id == "explanation_quality"
     assert 0.0 <= results[0].score <= 1.0
+    assert results[0].reason in {"命中评分标准", "未充分命中评分标准"}

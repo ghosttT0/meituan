@@ -45,6 +45,7 @@ def test_required_slot_rule_passes_when_slot_filled() -> None:
     )
 
     assert result.passed is True
+    assert result.reason == "已收集全部必填信息"
 
 
 def test_forbidden_rule_fails_on_promise() -> None:
@@ -55,6 +56,7 @@ def test_forbidden_rule_fails_on_promise() -> None:
 
     assert result.passed is False
     assert result.severity == "fatal"
+    assert result.reason == "检测到禁止承诺"
 
 
 def test_aggregator_zeroes_score_on_hard_fail() -> None:

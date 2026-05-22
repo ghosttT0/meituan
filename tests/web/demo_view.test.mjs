@@ -25,16 +25,16 @@ test("buildScoreCards maps dimension scores into dashboard cards", () => {
 test("buildAccordionSections returns evidence, rules, judge, and raw json", () => {
   const sections = view.buildAccordionSections({
     evidence_items: [{ quote: "您好，请问是张先生吗？", linked_decision: "required_steps" }],
-    rule_results: [{ rule_id: "required_steps", passed: true, reason: "all required steps found" }],
-    judge_results: [{ dimension_id: "task_focus", score: 0.84, reason: "rubric hit" }],
+    rule_results: [{ rule_id: "required_steps", passed: true, reason: "已完成全部必做步骤" }],
+    judge_results: [{ dimension_id: "task_focus", score: 0.84, reason: "命中评分标准" }],
     run_id: "run_demo",
     spec_id: "spec_demo",
     confidence: 0.9,
   });
 
   assert.equal(sections.evidence.length, 1);
-  assert.equal(sections.rules[0].title, "required_steps");
-  assert.equal(sections.judge[0].title, "task_focus");
+  assert.equal(sections.rules[0].title, "必做步骤");
+  assert.equal(sections.judge[0].title, "任务聚焦度");
   assert.match(sections.rawJson, /run_demo/);
 });
 

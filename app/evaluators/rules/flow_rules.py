@@ -14,5 +14,5 @@ class RequiredStepRule(Rule):
             passed=not missing,
             score_delta=1.0 if not missing else 0.0,
             evidence_turn_ids=[event.turn_id for event in events if event.event_type in required_ids],
-            reason="all required steps found" if not missing else f"missing steps: {', '.join(missing)}",
+            reason="已完成全部必做步骤" if not missing else f"缺少必做步骤：{', '.join(missing)}",
         )

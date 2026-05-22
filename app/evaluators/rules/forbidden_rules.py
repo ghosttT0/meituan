@@ -13,5 +13,5 @@ class ForbiddenActionRule(Rule):
             score_delta=1.0 if not forbidden_hit else 0.0,
             severity="fatal" if forbidden_hit else "normal",
             evidence_turn_ids=[event.turn_id for event in forbidden_hit],
-            reason="no forbidden action found" if not forbidden_hit else "forbidden promise detected",
+            reason="未触发禁止项" if not forbidden_hit else "检测到禁止承诺",
         )

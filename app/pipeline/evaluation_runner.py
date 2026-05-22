@@ -4,7 +4,7 @@ from app.domain.conversation import Conversation
 from app.domain.eval_spec import EvalSpec
 from app.domain.evaluation_result import EvaluationResult
 from app.evaluators.judge.consistency_judge import ConsistencyJudge
-from app.evaluators.judge.llm_adapter import FakeLLMAdapter
+from app.evaluators.judge.llm_adapter import OpenAILLMAdapter
 from app.evaluators.judge.rubric_judge import RubricJudge
 from app.evaluators.rules.flow_rules import RequiredStepRule
 from app.evaluators.rules.forbidden_rules import ForbiddenActionRule
@@ -29,7 +29,7 @@ class EvaluationRunner:
             ForbiddenActionRule().evaluate(spec, events),
         ]
 
-        judge = RubricJudge(FakeLLMAdapter())
+        judge = RubricJudge(OpenAILLMAdapter())
         judge_runs = ConsistencyJudge(judge, runs=2).evaluate(spec, parsed) if spec.soft_dimensions else []
         judge_results = judge_runs[0] if judge_runs else []
 
