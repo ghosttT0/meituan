@@ -1,13 +1,13 @@
 :root {
   color-scheme: light;
-  --bg: #f4f7fb;
+  --bg: #f0f9ff;
   --panel: #ffffff;
-  --panel-border: #dbe4f0;
-  --text: #172033;
-  --muted: #5f6b7c;
-  --primary: #1677ff;
-  --primary-soft: #eaf3ff;
-  --shadow: 0 16px 40px rgba(15, 23, 42, 0.08);
+  --panel-border: #cfe8f7;
+  --text: #14324d;
+  --muted: #5f7c95;
+  --primary: #38bdf8;
+  --primary-soft: #e0f2fe;
+  --shadow: 0 16px 40px rgba(56, 189, 248, 0.10);
 }
 
 * {
@@ -33,18 +33,17 @@ body {
   align-items: flex-start;
   gap: 16px;
   padding: 20px 24px;
-  border: 1px solid #d9e8ff;
+  border: 1px solid #bae6fd;
   border-radius: 20px;
-  background: linear-gradient(135deg, #f8fbff 0%, #eef5ff 100%);
+  background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
   box-shadow: var(--shadow);
 }
 
 .eyebrow {
   margin: 0 0 8px 0;
-  color: #7d8aa0;
+  color: #5f7c95;
   font-size: 12px;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.04em;
 }
 
 .demo-header h1 {
@@ -110,10 +109,9 @@ body {
 
 .card-label {
   margin: 0;
-  color: #8190a8;
+  color: #6b86a0;
   font-size: 12px;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.04em;
 }
 
 .hero-score {
@@ -121,7 +119,7 @@ body {
   font-size: 54px;
   font-weight: 800;
   line-height: 1;
-  color: #10213f;
+  color: #0f3b5f;
 }
 
 .hero-meta {
@@ -211,9 +209,9 @@ body {
 
 .preset-button.is-active,
 .mode-toggle button[data-active="true"] {
-  border-color: #a4c9ff;
+  border-color: #7dd3fc;
   background: var(--primary-soft);
-  color: #124ca3;
+  color: #0369a1;
 }
 
 .status-banner {
@@ -226,8 +224,8 @@ body {
 .scorecard-item {
   padding: 14px;
   border-radius: 14px;
-  background: #f8fbff;
-  border: 1px solid #e4edf7;
+  background: #f0f9ff;
+  border: 1px solid #d7eefb;
 }
 
 .scorecard-item p {
@@ -237,7 +235,7 @@ body {
 
 .scorecard-item strong {
   font-size: 28px;
-  color: #17305a;
+  color: #075985;
 }
 
 @media (max-width: 1100px) {

@@ -99,7 +99,7 @@ test("buildAccordionSections includes simulation trace when available", () => {
     turns: [{ turn_id: 1, speaker: "user", text: "为什么必须这样？" }],
   });
 
-  assert.equal(sections.simulation[0].title, "state_trace");
+  assert.equal(sections.simulation[0].title, "状态轨迹");
   assert.match(sections.simulation[0].body, /questioning/);
 });
 

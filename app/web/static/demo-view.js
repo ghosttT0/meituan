@@ -45,9 +45,9 @@ export function buildSimulationCards(result) {
 export function buildAccordionSections(result) {
   const simulation = result.state_trace
     ? [
-        { title: "state_trace", body: (result.state_trace ?? []).join(" → ") },
+        { title: "状态轨迹", body: (result.state_trace ?? []).join(" → ") },
         {
-          title: "turns",
+          title: "模拟对话",
           body: (result.turns ?? [])
             .map((turn) => `${turn.speaker}: ${turn.text}`)
             .join("\n"),

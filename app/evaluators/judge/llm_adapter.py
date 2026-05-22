@@ -96,7 +96,7 @@ class OpenAILLMAdapter:
                 "dimension_id": dimension_id,
                 "score": 0.5,
                 "confidence": 0.3,
-                "reason": f"LLM评估失败：{str(e)}",
+                "reason": f"LLM评估失败：{self._normalize_error_message(str(e))}",
                 "evidence_turn_ids": [],
             }
 
@@ -105,3 +105,15 @@ class OpenAILLMAdapter:
         if fenced:
             return fenced.group(1).strip()
         return content.strip()
+
+    def _normalize_error_message(self, raw: str) -> str:
+        lowered = raw.lower()
+        if "blocked" in lowered:
+            return "请求被拦截，请检查网关或模型权限。"
+        if "timeout" in lowered:
+            return "请求超时，请稍后重试。"
+        if "empty response" in lowered or "empty response" in raw:
+            return "模型未返回内容。"
+        if "network" in lowered:
+            return "网络请求失败。"
+        return raw

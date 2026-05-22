@@ -49,3 +49,12 @@ def test_openai_adapter_returns_chinese_fallback_reason_on_error() -> None:
     assert result["score"] == 0.5
     assert result["confidence"] == 0.3
     assert result["reason"].startswith("LLM评估失败：")
+
+
+def test_openai_adapter_translates_blocked_error_to_chinese() -> None:
+    adapter = OpenAILLMAdapter(client=_FakeClient("", should_raise=True))
+    adapter._normalize_error_message = lambda raw: "请求被拦截，请检查网关或模型权限。"
+
+    result = adapter.score_dimension("task_focus", ["保持任务推进"], "agent: 您好")
+
+    assert result["reason"] == "LLM评估失败：请求被拦截，请检查网关或模型权限。"

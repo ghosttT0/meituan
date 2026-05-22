@@ -26,6 +26,7 @@ def test_demo_page_contains_dashboard_shell_and_accordions() -> None:
 
     for token in [
         "履约数字人外呼评估驾驶舱",
+        "任务指令遵循自动评测演示",
         'id="demo-header"',
         'id="demo-input-panel"',
         'id="demo-summary-panel"',
@@ -46,3 +47,4 @@ def test_demo_styles_include_responsive_dashboard_rules() -> None:
     assert ".demo-shell" in css
     assert "grid-template-columns: 400px minmax(0, 1fr);" in css
     assert "@media (max-width: 1100px)" in css
+    assert "--primary: #38bdf8;" in css
