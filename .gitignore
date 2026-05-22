@@ -5,3 +5,4 @@ pytest-cache-files-*/
 .coverage
 *.db
 *.db-journal
+batch_summary.csv

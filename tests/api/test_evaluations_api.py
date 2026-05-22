@@ -78,3 +78,39 @@ def test_get_evaluation_run_returns_saved_payload() -> None:
 
     assert get_response.status_code == 200
     assert get_response.json()["run_id"] == run_id
+
+
+def test_compile_then_evaluate_then_fetch_round_trip() -> None:
+    client = TestClient(app)
+    compiled = client.post(
+        "/specs/compile",
+        json={
+            "instruction_id": "instr_round_trip",
+            "name": "确认送达时间",
+            "raw_text": "请先确认身份，再确认收货时间，不要承诺一定送达。",
+        },
+    ).json()
+
+    result = client.post(
+        "/evaluations/run",
+        json={
+            "spec": compiled,
+            "conversation": {
+                "conversation_id": "conv_round_trip",
+                "instruction_id": "instr_round_trip",
+                "turns": [
+                    {"turn_id": 1, "speaker": "agent", "text": "您好，请问是张先生吗？"},
+                    {"turn_id": 2, "speaker": "user", "text": "是的。"},
+                    {"turn_id": 3, "speaker": "agent", "text": "来电是为了确认收货时间，您明天下午方便收货吗？"},
+                    {"turn_id": 4, "speaker": "user", "text": "明天下午可以。"},
+                    {"turn_id": 5, "speaker": "agent", "text": "好的，感谢您的配合，再见。"},
+                ],
+            },
+        },
+    )
+
+    fetched = client.get(f"/evaluations/{result.json()['run_id']}")
+
+    assert result.status_code == 200
+    assert fetched.status_code == 200
+    assert fetched.json()["conversation_id"] == "conv_round_trip"
