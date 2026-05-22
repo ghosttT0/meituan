@@ -7,7 +7,69 @@
     <link rel="stylesheet" href="/demo/assets/demo.css" />
   </head>
   <body>
-    <div id="demo-root">demo shell</div>
-    <script type="module" src="/demo/assets/demo-view.js"></script>
+    <div id="demo-root" class="demo-shell">
+      <header id="demo-header" class="demo-header">
+        <div>
+          <p class="eyebrow">Instruction Following Evaluator Demo</p>
+          <h1>履约数字人外呼评估驾驶舱</h1>
+          <p class="subhead">任务指令遵循自动评估 Demo</p>
+        </div>
+        <div class="header-actions">
+          <button id="preset-mode-button" type="button">预置案例</button>
+          <button id="manual-mode-button" type="button">手动试跑</button>
+          <button id="export-result-button" type="button">导出结果</button>
+        </div>
+      </header>
+
+      <main class="demo-main">
+        <aside id="demo-input-panel" class="panel"></aside>
+
+        <section id="demo-summary-panel" class="summary-column">
+          <section class="summary-strip">
+            <article class="hero-card">
+              <p class="card-label">总分</p>
+              <div id="summary-score" class="hero-score">--</div>
+              <p id="summary-confidence" class="hero-meta">等待运行</p>
+            </article>
+            <article class="summary-card">
+              <p class="card-label">总体结论</p>
+              <p id="summary-headline">等待运行</p>
+            </article>
+            <article class="summary-card">
+              <p class="card-label">复核状态</p>
+              <p id="summary-review-flag">等待运行</p>
+            </article>
+          </section>
+
+          <section class="panel">
+            <div class="section-header">
+              <h2>评分卡</h2>
+            </div>
+            <div id="scorecard-grid" class="scorecard-grid"></div>
+          </section>
+
+          <section class="accordion-stack">
+            <details data-accordion="evidence" class="accordion-item">
+              <summary>证据链</summary>
+              <div id="accordion-evidence" class="accordion-content"></div>
+            </details>
+            <details data-accordion="rules" class="accordion-item">
+              <summary>规则命中详情</summary>
+              <div id="accordion-rules" class="accordion-content"></div>
+            </details>
+            <details data-accordion="judge" class="accordion-item">
+              <summary>LLM 判分理由</summary>
+              <div id="accordion-judge" class="accordion-content"></div>
+            </details>
+            <details data-accordion="raw-json" class="accordion-item">
+              <summary>原始 JSON / 技术细节</summary>
+              <pre id="accordion-json" class="json-block"></pre>
+            </details>
+          </section>
+        </section>
+      </main>
+
+      <script type="module" src="/demo/assets/demo-view.js"></script>
+    </div>
   </body>
 </html>

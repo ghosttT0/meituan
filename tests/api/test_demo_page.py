@@ -16,3 +16,33 @@ def test_demo_page_and_assets_are_available() -> None:
     assert "text/css" in css.headers["content-type"]
     assert script.status_code == 200
     assert "javascript" in script.headers["content-type"]
+
+
+def test_demo_page_contains_dashboard_shell_and_accordions() -> None:
+    client = TestClient(app)
+
+    response = client.get("/demo")
+    html = response.text
+
+    for token in [
+        "履约数字人外呼评估驾驶舱",
+        'id="demo-header"',
+        'id="demo-input-panel"',
+        'id="demo-summary-panel"',
+        'id="scorecard-grid"',
+        'data-accordion="evidence"',
+        'data-accordion="rules"',
+        'data-accordion="judge"',
+        'data-accordion="raw-json"',
+    ]:
+        assert token in html
+
+
+def test_demo_styles_include_responsive_dashboard_rules() -> None:
+    client = TestClient(app)
+
+    css = client.get("/demo/assets/demo.css").text
+
+    assert ".demo-shell" in css
+    assert "grid-template-columns: 400px minmax(0, 1fr);" in css
+    assert "@media (max-width: 1100px)" in css
