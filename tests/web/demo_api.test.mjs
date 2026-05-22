@@ -67,3 +67,45 @@ test("runEvaluationFlow calls compile then evaluation endpoints", async () => {
   assert.equal(calls[1].url, "/evaluations/run");
   assert.equal(result.run_id, "run_1");
 });
+
+test("runSimulationFlow calls compile then simulation endpoint", async () => {
+  const calls = [];
+  const fakeFetch = async (url, options) => {
+    calls.push({ url, body: JSON.parse(options.body) });
+    if (url === "/specs/compile") {
+      return {
+        ok: true,
+        json: async () => ({ spec_id: "spec_compiled", task_goal: "确认收货时间" }),
+      };
+    }
+    return {
+      ok: true,
+      json: async () => ({
+        simulation_id: "sim_1",
+        profile_id: "questioning",
+        state_trace: ["init", "questioning", "terminated"],
+        evaluation: { overall_score: 66 },
+      }),
+    };
+  };
+
+  const result = await demoApi.runSimulationFlow(
+    fakeFetch,
+    {
+      instructionText: "请确认收货时间",
+      conversationText: "agent: 您好\nuser: 明天下午可以",
+    },
+    {
+      adapterType: "mock",
+      profileId: "questioning",
+      primaryBranch: "questioning",
+      maxTurns: 4,
+    },
+  );
+
+  assert.equal(calls[0].url, "/specs/compile");
+  assert.equal(calls[1].url, "/simulations/run");
+  assert.equal(calls[1].body.adapter.type, "mock");
+  assert.equal(calls[1].body.simulation.profile_id, "questioning");
+  assert.equal(result.simulation_id, "sim_1");
+});

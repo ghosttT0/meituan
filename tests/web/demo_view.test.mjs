@@ -41,6 +41,7 @@ test("buildAccordionSections returns evidence, rules, judge, and raw json", () =
 test("buildInputPanelHtml exposes action hooks for browser binding", () => {
   const markup = view.buildInputPanelHtml({
     mode: "preset",
+    runMode: "evaluation",
     activePresetId: "delivery_time",
     instructionText: "请确认收货时间",
     conversationText: "agent: 您好",
@@ -51,6 +52,55 @@ test("buildInputPanelHtml exposes action hooks for browser binding", () => {
   assert.match(markup, /id="run-evaluation-button"/);
   assert.match(markup, /id="reset-demo-button"/);
   assert.match(markup, /id="status-banner"/);
+});
+
+test("buildInputPanelHtml exposes simulation controls in simulation mode", () => {
+  const markup = view.buildInputPanelHtml({
+    mode: "preset",
+    runMode: "simulation",
+    activePresetId: "delivery_time",
+    instructionText: "请确认收货时间",
+    conversationText: "agent: 您好",
+    status: "idle",
+    errorMessage: "",
+    simulationConfig: {
+      adapterType: "mock",
+      profileId: "busy",
+      primaryBranch: "busy",
+      maxTurns: 4,
+    },
+  });
+
+  assert.match(markup, /id="run-mode-evaluation"/);
+  assert.match(markup, /id="run-mode-simulation"/);
+  assert.match(markup, /id="simulation-profile-select"/);
+  assert.match(markup, /id="simulation-branch-select"/);
+  assert.match(markup, /id="simulation-max-turns"/);
+});
+
+test("buildSimulationCards maps simulation metadata into cards", () => {
+  const cards = view.buildSimulationCards({
+    profile_id: "busy",
+    termination_reason: "user_busy_end",
+    state_trace: ["init", "busy", "terminated"],
+  });
+
+  assert.equal(cards[0].title, "模拟画像");
+  assert.equal(cards[0].value, "busy");
+  assert.equal(cards[2].value, "3");
+});
+
+test("buildAccordionSections includes simulation trace when available", () => {
+  const sections = view.buildAccordionSections({
+    run_id: "run_demo",
+    spec_id: "spec_demo",
+    confidence: 0.9,
+    state_trace: ["init", "questioning", "terminated"],
+    turns: [{ turn_id: 1, speaker: "user", text: "为什么必须这样？" }],
+  });
+
+  assert.equal(sections.simulation[0].title, "state_trace");
+  assert.match(sections.simulation[0].body, /questioning/);
 });
 
 test("buildExportFilename uses the run id", () => {

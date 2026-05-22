@@ -41,12 +41,19 @@ export function createInitialState() {
   const first = PRESET_CASES[0];
   return {
     mode: "preset",
+    runMode: "evaluation",
     activePresetId: first.id,
     instructionText: first.instructionText,
     conversationText: first.conversationText,
     lastResult: null,
     status: "idle",
     errorMessage: "",
+    simulationConfig: {
+      adapterType: "mock",
+      profileId: "cooperative",
+      primaryBranch: "cooperative",
+      maxTurns: 6,
+    },
   };
 }
 
@@ -69,6 +76,14 @@ export function switchMode(state, mode) {
   return {
     ...state,
     mode,
+    errorMessage: "",
+  };
+}
+
+export function switchRunMode(state, runMode) {
+  return {
+    ...state,
+    runMode,
     errorMessage: "",
   };
 }
