@@ -42,6 +42,7 @@ export function createInitialState() {
   return {
     mode: "preset",
     runMode: "evaluation",
+    rightPanelMode: "results",
     activePresetId: first.id,
     instructionText: first.instructionText,
     conversationText: first.conversationText,
@@ -84,6 +85,7 @@ export function switchRunMode(state, runMode) {
   return {
     ...state,
     runMode,
+    rightPanelMode: runMode === "simulation" ? "conversation" : "results",
     errorMessage: "",
   };
 }

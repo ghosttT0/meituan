@@ -20,6 +20,15 @@ const DIMENSION_LABELS = {
   explanation_quality: "解释充分性",
 };
 
+const PROFILE_LABELS = {
+  cooperative: "配合型",
+  hesitant: "犹豫型",
+  rejecting: "拒绝型",
+  busy: "忙碌型",
+  interrupting: "打断型",
+  questioning: "追问型",
+};
+
 export function buildScoreCards(result) {
   const labels = {
     flow_following: "流程遵循",
@@ -36,7 +45,7 @@ export function buildScoreCards(result) {
 
 export function buildSimulationCards(result) {
   return [
-    { title: "模拟画像", value: result.profile_id ?? "-" },
+    { title: "模拟画像", value: PROFILE_LABELS[result.profile_id] ?? result.profile_id ?? "-" },
     { title: "结束原因", value: result.termination_reason ?? "-" },
     { title: "状态步数", value: String((result.state_trace ?? []).length) },
   ];
@@ -114,7 +123,7 @@ export function buildInputPanelHtml(state) {
           ${["cooperative", "hesitant", "rejecting", "busy", "interrupting", "questioning"]
             .map(
               (item) =>
-                `<option value="${item}"${item === state.simulationConfig.profileId ? " selected" : ""}>${item}</option>`,
+                `<option value="${item}"${item === state.simulationConfig.profileId ? " selected" : ""}>${PROFILE_LABELS[item]}</option>`,
             )
             .join("")}
         </select>
@@ -123,7 +132,7 @@ export function buildInputPanelHtml(state) {
           ${["cooperative", "hesitant", "rejecting", "busy", "interrupting", "questioning"]
             .map(
               (item) =>
-                `<option value="${item}"${item === state.simulationConfig.primaryBranch ? " selected" : ""}>${item}</option>`,
+                `<option value="${item}"${item === state.simulationConfig.primaryBranch ? " selected" : ""}>${PROFILE_LABELS[item]}</option>`,
             )
             .join("")}
         </select>
@@ -152,10 +161,14 @@ export function buildInputPanelHtml(state) {
         <button id="mode-preset" type="button"${state.mode === "preset" ? ' data-active="true"' : ""}>预置案例</button>
         <button id="mode-manual" type="button"${state.mode === "manual" ? ' data-active="true"' : ""}>手动试跑</button>
       </div>
-      <label class="field-label" for="instruction-input">任务指令</label>
+      <label class="field-label" for="instruction-input">${state.runMode === "simulation" ? "系统提示词（任务指令）" : "任务指令"}</label>
       <textarea id="instruction-input" class="text-input">${state.instructionText}</textarea>
-      <label class="field-label" for="conversation-input">对话转写</label>
-      <textarea id="conversation-input" class="text-input transcript-input">${state.conversationText}</textarea>
+      ${
+        state.runMode === "simulation"
+          ? `<p class="dialogue-note">模拟模式下，对话将由系统自动生成并在右侧以聊天形式展示。</p>`
+          : `<label class="field-label" for="conversation-input">对话转写</label>
+      <textarea id="conversation-input" class="text-input transcript-input">${state.conversationText}</textarea>`
+      }
       <div class="input-actions">
         <button id="run-evaluation-button" type="button">${state.runMode === "simulation" ? "运行模拟" : "运行评估"}</button>
         <button id="reset-demo-button" type="button">重置</button>
@@ -169,6 +182,34 @@ export function buildInputPanelHtml(state) {
       <div class="preset-list">${presetButtons}</div>
     </section>
     <section id="status-banner" class="status-banner">${state.status === "error" ? state.errorMessage : "就绪"}</section>
+  `;
+}
+
+export function buildSimulationDialogueHtml(turns) {
+  if (!turns?.length) {
+    return `
+      <h2 class="dialogue-title">模拟对话</h2>
+      <p class="simulation-placeholder">运行模拟后，这里会以对话气泡形式展示“模拟用户”与“被测模型”的完整往返过程。</p>
+    `;
+  }
+
+  const items = turns
+    .map((turn) => {
+      const isUser = turn.speaker === "user";
+      return `
+        <article class="chat-message ${isUser ? "user" : "agent"}">
+          <div class="chat-bubble">
+            <span class="chat-role">${isUser ? "模拟用户" : "被测模型"}</span>
+            <p class="chat-text">${turn.text}</p>
+          </div>
+        </article>
+      `;
+    })
+    .join("");
+
+  return `
+    <h2 class="dialogue-title">对话回放</h2>
+    <div class="chat-thread">${items}</div>
   `;
 }
 
@@ -225,13 +266,31 @@ function renderResultPanel(documentRef, state) {
     .map((item) => `<article><strong>${item.title}</strong><p>${item.body}</p></article>`)
     .join("");
   documentRef.getElementById("accordion-json").textContent = sections.rawJson;
+
+  const dialoguePanel = documentRef.getElementById("simulation-dialogue-panel");
+  dialoguePanel.innerHTML = buildSimulationDialogueHtml(state.lastResult?.turns ?? []);
+
+  const resultDetailsPanel = documentRef.getElementById("result-details-panel");
+  const resultsButton = documentRef.getElementById("view-mode-results");
+  const conversationButton = documentRef.getElementById("view-mode-conversation");
+
+  const conversationEnabled = state.runMode === "simulation";
+  resultsButton.dataset.active = state.rightPanelMode === "results" ? "true" : "false";
+  conversationButton.dataset.active = state.rightPanelMode === "conversation" ? "true" : "false";
+  conversationButton.disabled = !conversationEnabled;
+
+  resultDetailsPanel.style.display = state.rightPanelMode === "results" ? "grid" : "none";
+  dialoguePanel.style.display = state.rightPanelMode === "conversation" ? "block" : "none";
 }
 
 function syncStateFromInputs(documentRef, state) {
   const next = {
     ...state,
     instructionText: documentRef.getElementById("instruction-input").value,
-    conversationText: documentRef.getElementById("conversation-input").value,
+    conversationText:
+      state.runMode === "simulation"
+        ? state.conversationText
+        : documentRef.getElementById("conversation-input").value,
   };
 
   if (next.runMode === "simulation") {
@@ -283,6 +342,16 @@ export function bootstrapDemo(documentRef = document, fetchImpl = fetch) {
       rerender();
     };
 
+    documentRef.getElementById("view-mode-results").onclick = () => {
+      state = { ...state, rightPanelMode: "results" };
+      rerender();
+    };
+
+    documentRef.getElementById("view-mode-conversation").onclick = () => {
+      state = { ...state, rightPanelMode: "conversation" };
+      rerender();
+    };
+
     documentRef.querySelectorAll("[data-preset-id]").forEach((button) => {
       button.onclick = () => {
         state = applyPreset(state, button.dataset.presetId);
@@ -305,7 +374,12 @@ export function bootstrapDemo(documentRef = document, fetchImpl = fetch) {
           state.runMode === "simulation"
             ? await runSimulationFlow(fetchImpl, state, state.simulationConfig)
             : await runEvaluationFlow(fetchImpl, state);
-        state = { ...state, status: "success", lastResult: result };
+        state = {
+          ...state,
+          status: "success",
+          lastResult: result,
+          rightPanelMode: state.runMode === "simulation" ? "conversation" : "results",
+        };
         rerender();
       } catch (_error) {
         state = {

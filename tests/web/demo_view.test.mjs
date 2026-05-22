@@ -76,6 +76,8 @@ test("buildInputPanelHtml exposes simulation controls in simulation mode", () =>
   assert.match(markup, /id="simulation-profile-select"/);
   assert.match(markup, /id="simulation-branch-select"/);
   assert.match(markup, /id="simulation-max-turns"/);
+  assert.match(markup, /系统提示词（任务指令）/);
+  assert.match(markup, />忙碌型</);
 });
 
 test("buildSimulationCards maps simulation metadata into cards", () => {
@@ -86,7 +88,7 @@ test("buildSimulationCards maps simulation metadata into cards", () => {
   });
 
   assert.equal(cards[0].title, "模拟画像");
-  assert.equal(cards[0].value, "busy");
+  assert.equal(cards[0].value, "忙碌型");
   assert.equal(cards[2].value, "3");
 });
 
@@ -101,6 +103,19 @@ test("buildAccordionSections includes simulation trace when available", () => {
 
   assert.equal(sections.simulation[0].title, "状态轨迹");
   assert.match(sections.simulation[0].body, /questioning/);
+});
+
+test("buildSimulationDialogueHtml renders chat bubbles", () => {
+  const html = view.buildSimulationDialogueHtml([
+    { turn_id: 1, speaker: "user", text: "为什么必须这样？" },
+    { turn_id: 2, speaker: "agent", text: "因为这次主要是确认安排。" },
+  ]);
+
+  assert.match(html, /对话回放/);
+  assert.match(html, /chat-message user/);
+  assert.match(html, /chat-message agent/);
+  assert.match(html, /模拟用户/);
+  assert.match(html, /被测模型/);
 });
 
 test("buildExportFilename uses the run id", () => {

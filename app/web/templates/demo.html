@@ -41,31 +41,45 @@
             </article>
           </section>
 
-          <section class="panel">
-            <div class="section-header">
-              <h2>评分卡</h2>
+          <section class="panel view-toggle-panel">
+            <div class="section-header view-toggle-header">
+              <h2>右侧视图</h2>
+              <div class="mode-toggle">
+                <button id="view-mode-results" type="button" data-active="true">评测结果</button>
+                <button id="view-mode-conversation" type="button">模拟对话</button>
+              </div>
             </div>
-            <div id="scorecard-grid" class="scorecard-grid"></div>
           </section>
 
-          <section class="accordion-stack">
-            <details data-accordion="evidence" class="accordion-item">
-              <summary>证据链</summary>
-              <div id="accordion-evidence" class="accordion-content"></div>
-            </details>
-            <details data-accordion="rules" class="accordion-item">
-              <summary>规则命中详情</summary>
-              <div id="accordion-rules" class="accordion-content"></div>
-            </details>
-            <details data-accordion="judge" class="accordion-item">
-              <summary>LLM 判分理由</summary>
-              <div id="accordion-judge" class="accordion-content"></div>
-            </details>
-            <details data-accordion="raw-json" class="accordion-item">
-              <summary>原始 JSON / 技术细节</summary>
-              <pre id="accordion-json" class="json-block"></pre>
-            </details>
+          <section id="result-details-panel" class="result-details-panel">
+            <section class="panel">
+              <div class="section-header">
+                <h2>评分卡</h2>
+              </div>
+              <div id="scorecard-grid" class="scorecard-grid"></div>
+            </section>
+
+            <section class="accordion-stack">
+              <details data-accordion="evidence" class="accordion-item">
+                <summary>证据链</summary>
+                <div id="accordion-evidence" class="accordion-content"></div>
+              </details>
+              <details data-accordion="rules" class="accordion-item">
+                <summary>规则命中详情</summary>
+                <div id="accordion-rules" class="accordion-content"></div>
+              </details>
+              <details data-accordion="judge" class="accordion-item">
+                <summary>LLM 判分理由</summary>
+                <div id="accordion-judge" class="accordion-content"></div>
+              </details>
+              <details data-accordion="raw-json" class="accordion-item">
+                <summary>原始 JSON / 技术细节</summary>
+                <pre id="accordion-json" class="json-block"></pre>
+              </details>
+            </section>
           </section>
+
+          <section id="simulation-dialogue-panel" class="panel simulation-dialogue-panel"></section>
         </section>
       </main>
 
