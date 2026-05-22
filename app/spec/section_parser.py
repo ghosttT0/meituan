@@ -50,7 +50,7 @@ class InstructionSectionParser:
             constraint_items.append(
                 IRConstraintItem(
                     constraint_id="constraint_1",
-                    raw_text="不能做出超出范围的承诺",
+                    raw_text="不能承诺一定送达",
                     category="forbidden_commitment",
                 )
             )
