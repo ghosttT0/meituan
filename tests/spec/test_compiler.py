@@ -58,3 +58,18 @@ def test_compiler_keeps_legacy_keyword_fallback_for_plain_text_instruction() -> 
     assert any(item.id == "identity_check" for item in spec.required_steps)
     assert spec.required_slots[0].name == "delivery_time"
     assert spec.forbidden_actions[0].id in {"forbid_commitment", "forbid_false_promise"}
+
+
+def test_compiler_marks_forbidden_commitment_and_fallback_together() -> None:
+    compiler = SpecCompiler()
+
+    spec = compiler.compile(
+        TaskInstruction(
+            instruction_id="instr_course",
+            name="课程直播线路通知",
+            raw_text="# Role\n你是客服\n\n# Task\n通知直播升级\n\n# Constraints\n- 不能承诺给商家折扣券或优惠券\n- 若商家说在开车，礼貌说“那我稍后再打”后挂断",
+        )
+    )
+
+    assert spec.forbidden_actions[0].id == "forbid_commitment"
+    assert "稍后再打" in spec.fallback_policy[0]
