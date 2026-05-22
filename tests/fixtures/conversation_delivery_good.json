@@ -1,0 +1,11 @@
+{
+  "conversation_id": "conv_good_1",
+  "instruction_id": "instr_delivery_time",
+  "turns": [
+    {"turn_id": 1, "speaker": "agent", "text": "您好，请问是王女士吗？"},
+    {"turn_id": 2, "speaker": "user", "text": "是的。"},
+    {"turn_id": 3, "speaker": "agent", "text": "来电是为了确认今天收货时间，方便问下您下午是否在家？"},
+    {"turn_id": 4, "speaker": "user", "text": "下午三点后可以。"},
+    {"turn_id": 5, "speaker": "agent", "text": "好的，已为您记录下午三点后收货，感谢您的配合，再见。"}
+  ]
+}
