@@ -9,6 +9,7 @@ class Database:
     def connect(self) -> sqlite3.Connection:
         connection = sqlite3.connect(self.path)
         connection.row_factory = sqlite3.Row
+        connection.execute("PRAGMA journal_mode=MEMORY;")
         return connection
 
     def init(self) -> None:
