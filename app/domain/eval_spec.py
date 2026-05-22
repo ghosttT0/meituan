@@ -34,11 +34,35 @@ class ScoringPolicy(BaseModel):
     hard_fail_zero_out: bool = True
 
 
+class FlowStepSpec(BaseModel):
+    step_id: str
+    order: int
+    title: str
+    raw_text: str
+
+
+class FAQItemSpec(BaseModel):
+    faq_id: str
+    raw_text: str
+
+
+class ConstraintItemSpec(BaseModel):
+    constraint_id: str
+    raw_text: str
+    category: str | None = None
+
+
 class EvalSpec(BaseModel):
     spec_id: str
     instruction_id: str
     version: str
     task_goal: str
+    role_definition: str = ""
+    opening_requirements: list[str] = Field(default_factory=list)
+    flow_steps: list[FlowStepSpec] = Field(default_factory=list)
+    faq_items: list[FAQItemSpec] = Field(default_factory=list)
+    constraint_items: list[ConstraintItemSpec] = Field(default_factory=list)
+    fallback_policy: list[str] = Field(default_factory=list)
     required_steps: list[RequiredStep] = Field(default_factory=list)
     optional_steps: list[RequiredStep] = Field(default_factory=list)
     required_slots: list[RequiredSlot] = Field(default_factory=list)
