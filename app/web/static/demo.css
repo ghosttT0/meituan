@@ -163,6 +163,83 @@ body {
   color: var(--muted);
 }
 
+.field-label {
+  display: block;
+  margin: 14px 0 8px 0;
+  color: #66758d;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.text-input {
+  width: 100%;
+  min-height: 64px;
+  padding: 12px 14px;
+  border: 1px solid #d7e0eb;
+  border-radius: 12px;
+  resize: vertical;
+  font: inherit;
+  color: var(--text);
+  background: #fbfdff;
+}
+
+.transcript-input {
+  min-height: 180px;
+}
+
+.mode-toggle,
+.preset-list,
+.input-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.preset-list {
+  flex-direction: column;
+}
+
+.preset-button,
+.mode-toggle button {
+  border: 1px solid #d7e0eb;
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: #fff;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.preset-button.is-active,
+.mode-toggle button[data-active="true"] {
+  border-color: #a4c9ff;
+  background: var(--primary-soft);
+  color: #124ca3;
+}
+
+.status-banner {
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px dashed #cbd8e6;
+  color: var(--muted);
+}
+
+.scorecard-item {
+  padding: 14px;
+  border-radius: 14px;
+  background: #f8fbff;
+  border: 1px solid #e4edf7;
+}
+
+.scorecard-item p {
+  margin: 0 0 8px 0;
+  color: var(--muted);
+}
+
+.scorecard-item strong {
+  font-size: 28px;
+  color: #17305a;
+}
+
 @media (max-width: 1100px) {
   .demo-main {
     grid-template-columns: 340px minmax(0, 1fr);
