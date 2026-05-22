@@ -48,12 +48,11 @@ def test_batch_evaluation_returns_multiple_results() -> None:
     assert len(response.json()["results"]) == 2
 
 
-def test_simulation_endpoint_is_reserved_but_not_implemented() -> None:
+def test_simulation_endpoint_rejects_invalid_payload() -> None:
     client = TestClient(app)
 
     response = client.post(
         "/simulations/run", json={"spec_id": "spec_demo", "model_config": {"name": "stub"}}
     )
 
-    assert response.status_code == 501
-    assert response.json()["detail"] == "simulation runner not implemented in prototype"
+    assert response.status_code == 422

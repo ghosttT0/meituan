@@ -59,3 +59,35 @@ def test_conversation_runner_returns_turns_trace_and_evaluation() -> None:
     assert result.turns
     assert result.state_trace[-1] == "terminated"
     assert "overall_score" in result.evaluation
+
+
+def test_conversation_runner_handles_busy_branch() -> None:
+    runner = ConversationRunner()
+
+    result = asyncio.run(
+        runner.run_mock(
+            spec=build_spec(),
+            profile_id="busy",
+            primary_branch="busy",
+            max_turns=4,
+        )
+    )
+
+    assert "busy" in result.state_trace
+    assert result.termination_reason == "user_busy_end"
+
+
+def test_conversation_runner_handles_questioning_branch() -> None:
+    runner = ConversationRunner()
+
+    result = asyncio.run(
+        runner.run_mock(
+            spec=build_spec(),
+            profile_id="questioning",
+            primary_branch="questioning",
+            max_turns=4,
+        )
+    )
+
+    assert "questioning" in result.state_trace
+    assert "overall_score" in result.evaluation
