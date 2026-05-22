@@ -1,6 +1,7 @@
 from app.domain.simulation import (
     ConversationState,
     ModelReplySignal,
+    SimulatedUserReply,
     SimulationRunResult,
     SimulationScenario,
     UserIntent,
@@ -49,3 +50,15 @@ def test_simulation_run_result_contains_trace_and_evaluation() -> None:
 
     assert result.state_trace[-1] == "terminated"
     assert result.evaluation["overall_score"] == 72
+
+
+def test_simulated_user_reply_model() -> None:
+    reply = SimulatedUserReply(
+        state="questioning",
+        intent="ask_why",
+        reply="为什么必须这样？",
+        should_end=False,
+    )
+
+    assert reply.state == "questioning"
+    assert reply.reply == "为什么必须这样？"

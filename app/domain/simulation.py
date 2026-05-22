@@ -36,6 +36,13 @@ class UserIntent(BaseModel):
     note: str = ""
 
 
+class SimulatedUserReply(BaseModel):
+    state: str
+    intent: str
+    reply: str
+    should_end: bool = False
+
+
 class ModelReplySignal(BaseModel):
     answered_question: bool
     explained_reason: bool
@@ -49,6 +56,7 @@ class SimulationRunResult(BaseModel):
     scenario_id: str
     profile_id: str
     termination_reason: str
+    generation_mode: str = "template_fallback"
     state_trace: list[str] = Field(default_factory=list)
     turns: list[dict] = Field(default_factory=list)
     evaluation: dict = Field(default_factory=dict)
