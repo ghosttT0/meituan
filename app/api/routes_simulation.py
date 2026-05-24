@@ -18,6 +18,7 @@ class SimulationConfig(BaseModel):
 
 class SimulationRequest(BaseModel):
     spec: EvalSpec
+    task_instruction_text: str = ""
     adapter: AdapterConfig = Field(default_factory=AdapterConfig)
     simulation: SimulationConfig = Field(default_factory=SimulationConfig)
     model_config = ConfigDict(populate_by_name=True)
@@ -36,6 +37,7 @@ async def run_simulation(payload: SimulationRequest) -> dict:
             profile_id=payload.simulation.profile_id,
             primary_branch=payload.simulation.primary_branch,
             max_turns=payload.simulation.max_turns,
+            task_instruction_text=payload.task_instruction_text,
         )
         return result.model_dump()
 
@@ -46,6 +48,7 @@ async def run_simulation(payload: SimulationRequest) -> dict:
             primary_branch=payload.simulation.primary_branch,
             endpoint=payload.adapter.endpoint,
             max_turns=payload.simulation.max_turns,
+            task_instruction_text=payload.task_instruction_text,
         )
         return result.model_dump()
 

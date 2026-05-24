@@ -107,5 +107,6 @@ test("runSimulationFlow calls compile then simulation endpoint", async () => {
   assert.equal(calls[1].url, "/simulations/run");
   assert.equal(calls[1].body.adapter.type, "mock");
   assert.equal(calls[1].body.simulation.profile_id, "questioning");
+  assert.equal(calls[1].body.task_instruction_text, "请确认收货时间");
   assert.equal(result.simulation_id, "sim_1");
 });

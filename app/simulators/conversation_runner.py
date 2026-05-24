@@ -24,10 +24,17 @@ class ConversationRunner:
         self.user_simulator = user_simulator or OpenAIUserSimulatorAdapter()
 
     async def run_mock(
-        self, spec: EvalSpec, profile_id: str, primary_branch: str, max_turns: int = 8
+        self,
+        spec: EvalSpec,
+        profile_id: str,
+        primary_branch: str,
+        max_turns: int = 8,
+        task_instruction_text: str = "",
     ) -> SimulationRunResult:
         adapter = MockModelAdapter()
-        return await self._run(adapter, spec, profile_id, primary_branch, max_turns)
+        return await self._run(
+            adapter, spec, profile_id, primary_branch, max_turns, task_instruction_text
+        )
 
     async def run_http(
         self,
@@ -36,12 +43,21 @@ class ConversationRunner:
         primary_branch: str,
         endpoint: str,
         max_turns: int = 8,
+        task_instruction_text: str = "",
     ) -> SimulationRunResult:
         adapter = HttpModelAdapter(endpoint=endpoint)
-        return await self._run(adapter, spec, profile_id, primary_branch, max_turns)
+        return await self._run(
+            adapter, spec, profile_id, primary_branch, max_turns, task_instruction_text
+        )
 
     async def _run(
-        self, adapter, spec: EvalSpec, profile_id: str, primary_branch: str, max_turns: int
+        self,
+        adapter,
+        spec: EvalSpec,
+        profile_id: str,
+        primary_branch: str,
+        max_turns: int,
+        task_instruction_text: str,
     ) -> SimulationRunResult:
         scenario = self.scenario_builder.build(
             spec, profile_id=profile_id, primary_branch=primary_branch, max_turns=max_turns
@@ -53,7 +69,7 @@ class ConversationRunner:
         signal = self.reply_analyzer.analyze("")
         generation_mode = "ai"
 
-        await adapter.start_session({})
+        await adapter.start_session({"task_instruction_text": task_instruction_text or spec.task_goal})
 
         for turn_index in range(max_turns):
             suggested_intent = self.policy_engine.next_intent(

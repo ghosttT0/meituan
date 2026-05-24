@@ -61,6 +61,7 @@ def test_simulation_api_runs_mock_closed_loop() -> None:
                     }
                 ],
             },
+            "task_instruction_text": "请先确认用户身份，再确认收货时间。",
             "adapter": {"type": "mock"},
             "simulation": {
                 "profile_id": "cooperative",

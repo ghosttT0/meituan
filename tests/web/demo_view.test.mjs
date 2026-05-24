@@ -64,7 +64,8 @@ test("buildInputPanelHtml exposes simulation controls in simulation mode", () =>
     status: "idle",
     errorMessage: "",
     simulationConfig: {
-      adapterType: "mock",
+      adapterType: "http",
+      endpoint: "http://localhost:9000/chat",
       profileId: "busy",
       primaryBranch: "busy",
       maxTurns: 4,
@@ -76,6 +77,8 @@ test("buildInputPanelHtml exposes simulation controls in simulation mode", () =>
   assert.match(markup, /id="simulation-profile-select"/);
   assert.match(markup, /id="simulation-branch-select"/);
   assert.match(markup, /id="simulation-max-turns"/);
+  assert.match(markup, /id="simulation-adapter-select"/);
+  assert.match(markup, /id="simulation-endpoint-input"/);
   assert.match(markup, /系统提示词（任务指令）/);
   assert.match(markup, />忙碌型</);
 });

@@ -50,7 +50,8 @@ export function createInitialState() {
     status: "idle",
     errorMessage: "",
     simulationConfig: {
-      adapterType: "mock",
+      adapterType: "http",
+      endpoint: "",
       profileId: "cooperative",
       primaryBranch: "cooperative",
       maxTurns: 6,

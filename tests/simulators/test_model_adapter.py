@@ -16,8 +16,12 @@ def test_mock_model_adapter_returns_scripted_reply() -> None:
 def test_http_model_adapter_builds_request_payload() -> None:
     adapter = HttpModelAdapter(endpoint="http://localhost/mock")
     payload = adapter.build_payload(
-        session_id="session_1", history=[{"speaker": "user", "text": "你好"}]
+        session_id="session_1",
+        history=[{"speaker": "user", "text": "你好"}],
+        task_instruction_text="请先确认用户身份，再确认收货时间。",
     )
 
     assert payload["session_id"] == "session_1"
     assert payload["history"][0]["speaker"] == "user"
+    assert payload["task_instruction"] == "请先确认用户身份，再确认收货时间。"
+    assert payload["system_prompt"] == "请先确认用户身份，再确认收货时间。"

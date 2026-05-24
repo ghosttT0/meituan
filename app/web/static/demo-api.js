@@ -34,9 +34,10 @@ export function buildEvaluationPayload(spec, state) {
   };
 }
 
-export function buildSimulationPayload(spec, simulationConfig) {
+export function buildSimulationPayload(spec, state, simulationConfig) {
   return {
     spec,
+    task_instruction_text: state.instructionText,
     adapter: {
       type: simulationConfig.adapterType,
       endpoint: simulationConfig.endpoint ?? null,
@@ -72,6 +73,10 @@ export async function runEvaluationFlow(fetchImpl, state) {
 }
 
 export async function runSimulationFlow(fetchImpl, state, simulationConfig) {
+  if (simulationConfig.adapterType === "http" && !simulationConfig.endpoint) {
+    throw new Error("missing simulation endpoint");
+  }
+
   const compileResponse = await fetchImpl("/specs/compile", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -85,7 +90,7 @@ export async function runSimulationFlow(fetchImpl, state, simulationConfig) {
   const simulationResponse = await fetchImpl("/simulations/run", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(buildSimulationPayload(spec, simulationConfig)),
+    body: JSON.stringify(buildSimulationPayload(spec, state, simulationConfig)),
   });
   if (!simulationResponse.ok) {
     throw new Error("simulation request failed");

@@ -118,6 +118,13 @@ export function buildInputPanelHtml(state) {
           <button id="run-mode-evaluation" type="button">评估模式</button>
           <button id="run-mode-simulation" type="button" data-active="true">模拟模式</button>
         </div>
+        <label class="field-label" for="simulation-adapter-select">被测模型来源</label>
+        <select id="simulation-adapter-select" class="text-input">
+          <option value="http"${state.simulationConfig.adapterType === "http" ? " selected" : ""}>真实模型接口</option>
+          <option value="mock"${state.simulationConfig.adapterType === "mock" ? " selected" : ""}>Mock演示</option>
+        </select>
+        <label class="field-label" for="simulation-endpoint-input">模型接口地址</label>
+        <input id="simulation-endpoint-input" class="text-input" type="text" value="${state.simulationConfig.endpoint ?? ""}" placeholder="http://你的模型接口地址" />
         <label class="field-label" for="simulation-profile-select">用户画像</label>
         <select id="simulation-profile-select" class="text-input">
           ${["cooperative", "hesitant", "rejecting", "busy", "interrupting", "questioning"]
@@ -299,6 +306,8 @@ function syncStateFromInputs(documentRef, state) {
       profileId: documentRef.getElementById("simulation-profile-select").value,
       primaryBranch: documentRef.getElementById("simulation-branch-select").value,
       maxTurns: Number(documentRef.getElementById("simulation-max-turns").value),
+      adapterType: documentRef.getElementById("simulation-adapter-select").value,
+      endpoint: documentRef.getElementById("simulation-endpoint-input").value.trim(),
     };
   }
 

@@ -45,11 +45,19 @@ class HttpModelAdapter:
         self.session_id = ""
         self.history: list[dict] = []
 
-    def build_payload(self, session_id: str, history: list[dict]) -> dict:
-        return {"session_id": session_id, "history": history}
+    def build_payload(
+        self, session_id: str, history: list[dict], task_instruction_text: str
+    ) -> dict:
+        return {
+            "session_id": session_id,
+            "task_instruction": task_instruction_text,
+            "system_prompt": task_instruction_text,
+            "history": history,
+        }
 
     async def start_session(self, config: dict) -> str:
         self.session_id = config.get("session_id", f"http_{uuid4().hex[:8]}")
+        self.task_instruction_text = config.get("task_instruction_text", "")
         self.history = []
         return self.session_id
 
@@ -57,11 +65,14 @@ class HttpModelAdapter:
         self.history.append({"speaker": "user", "text": message})
         async with httpx.AsyncClient(timeout=20) as client:
             response = await client.post(
-                self.endpoint, json=self.build_payload(self.session_id, self.history)
+                self.endpoint,
+                json=self.build_payload(self.session_id, self.history, self.task_instruction_text),
             )
         response.raise_for_status()
         data = response.json()
-        reply = data["reply"]
+        reply = data.get("reply") or data.get("content") or data.get("message")
+        if not reply:
+            raise KeyError("reply")
         self.history.append({"speaker": "assistant", "text": reply})
         return reply
 
