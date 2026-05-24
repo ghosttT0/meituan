@@ -88,11 +88,15 @@ test("buildSimulationCards maps simulation metadata into cards", () => {
     profile_id: "busy",
     termination_reason: "user_busy_end",
     state_trace: ["init", "busy", "terminated"],
+    generation_mode: "ai",
+    adapter_mode: "http",
   });
 
   assert.equal(cards[0].title, "模拟画像");
   assert.equal(cards[0].value, "忙碌型");
-  assert.equal(cards[2].value, "3");
+  assert.equal(cards[1].value, "AI生成");
+  assert.equal(cards[2].value, "真实模型接口");
+  assert.equal(cards[4].value, "3");
 });
 
 test("buildAccordionSections includes simulation trace when available", () => {

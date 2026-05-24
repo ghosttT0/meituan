@@ -57,6 +57,7 @@ class SimulationRunResult(BaseModel):
     profile_id: str
     termination_reason: str
     generation_mode: str = "template_fallback"
+    adapter_mode: str = "mock"
     state_trace: list[str] = Field(default_factory=list)
     turns: list[dict] = Field(default_factory=list)
     evaluation: dict = Field(default_factory=dict)

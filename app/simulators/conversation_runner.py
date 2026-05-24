@@ -133,6 +133,7 @@ class ConversationRunner:
             profile_id=profile_id,
             termination_reason="user_busy_end" if "busy" in state_trace else "task_complete",
             generation_mode=generation_mode,
+            adapter_mode="http" if isinstance(adapter, HttpModelAdapter) else "mock",
             state_trace=state_trace if state_trace[-1] == "terminated" else [*state_trace, "terminated"],
             turns=turns,
             evaluation=evaluation,

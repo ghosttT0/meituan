@@ -13,7 +13,8 @@ class UserPromptBuilder:
         signal: ModelReplySignal,
     ) -> str:
         history_text = "\n".join(f"{item['speaker']}: {item['text']}" for item in history) if history else "（当前无历史）"
-        return f"""你正在扮演一个接电话的真实用户，而不是客服。
+        return f"""你正在扮演一个接电话的真实用户。
+你不能扮演客服，也不能替客服推进任务。
 
 【用户画像】
 - 画像名称：{profile.name}
@@ -33,6 +34,8 @@ class UserPromptBuilder:
 【完整对话历史】
 {history_text}
 
+如果模型已经解释清楚，就不要机械重复同一句追问。
+如果模型没有解释清楚，再按照建议意图继续追问或表达阻碍。
 请你只站在用户角度回复。
 输出严格使用 JSON：
 {{

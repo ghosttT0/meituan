@@ -46,6 +46,8 @@ export function buildScoreCards(result) {
 export function buildSimulationCards(result) {
   return [
     { title: "模拟画像", value: PROFILE_LABELS[result.profile_id] ?? result.profile_id ?? "-" },
+    { title: "用户生成", value: result.generation_mode === "ai" ? "AI生成" : "模板兜底" },
+    { title: "助手来源", value: result.adapter_mode === "http" ? "真实模型接口" : "Mock演示" },
     { title: "结束原因", value: result.termination_reason ?? "-" },
     { title: "状态步数", value: String((result.state_trace ?? []).length) },
   ];

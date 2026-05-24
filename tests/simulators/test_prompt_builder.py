@@ -40,3 +40,5 @@ def test_prompt_builder_includes_profile_scenario_and_history() -> None:
     assert "当前状态：busy" in prompt
     assert "建议意图：say_busy" in prompt
     assert "agent: 您好，请问您明天下午方便收货吗？" in prompt
+    assert "你不能扮演客服" in prompt
+    assert "如果模型已经解释清楚" in prompt
