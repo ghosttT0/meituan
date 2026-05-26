@@ -42,6 +42,7 @@ class MockModelAdapter:
 class HttpModelAdapter:
     def __init__(self, endpoint: str) -> None:
         self.endpoint = endpoint
+        self.request_url = self._normalize_endpoint(endpoint)
         self.session_id = ""
         self.history: list[dict] = []
 
@@ -74,7 +75,7 @@ class HttpModelAdapter:
         )
         async with httpx.AsyncClient(timeout=20) as client:
             response = await client.post(
-                self.endpoint,
+                self.request_url,
                 headers=headers,
                 json=self.build_payload(self.session_id, self.history, self.task_instruction_text),
             )
@@ -88,3 +89,9 @@ class HttpModelAdapter:
 
     async def end_session(self) -> None:
         self.history = []
+
+    def _normalize_endpoint(self, endpoint: str) -> str:
+        trimmed = endpoint.rstrip("/")
+        if trimmed.endswith("/chat/completions"):
+            return trimmed
+        return f"{trimmed}/chat/completions"

@@ -25,3 +25,15 @@ def test_http_model_adapter_builds_request_payload() -> None:
     assert payload["history"][0]["speaker"] == "user"
     assert payload["task_instruction"] == "请先确认用户身份，再确认收货时间。"
     assert payload["system_prompt"] == "请先确认用户身份，再确认收货时间。"
+
+
+def test_http_model_adapter_normalizes_base_url_to_chat_completions() -> None:
+    adapter = HttpModelAdapter(endpoint="https://api.deepseek.com/v1")
+
+    assert adapter.request_url == "https://api.deepseek.com/v1/chat/completions"
+
+
+def test_http_model_adapter_keeps_full_chat_completions_url() -> None:
+    adapter = HttpModelAdapter(endpoint="https://api.deepseek.com/v1/chat/completions")
+
+    assert adapter.request_url == "https://api.deepseek.com/v1/chat/completions"
