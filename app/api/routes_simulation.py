@@ -3,6 +3,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from app.domain.eval_spec import EvalSpec
 from app.simulators.conversation_runner import ConversationRunner
+from app.simulators.model_probe import ModelProbeService
 
 
 class AdapterConfig(BaseModel):
@@ -24,7 +25,17 @@ class SimulationRequest(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
 
+class ModelConfigRequest(BaseModel):
+    name: str = ""
+    api_url: str
+    api_key: str
+    model: str = ""
+    protocol_mode: str = "auto"
+    auth_type: str = "bearer"
+
+
 router = APIRouter(prefix="/simulations", tags=["simulations"])
+probe_service = ModelProbeService()
 
 
 @router.post("/run")
@@ -53,3 +64,23 @@ async def run_simulation(payload: SimulationRequest) -> dict:
         return result.model_dump()
 
     raise HTTPException(status_code=400, detail="unsupported simulation adapter")
+
+
+@router.post("/check-model")
+async def check_model(payload: ModelConfigRequest) -> dict:
+    return await probe_service.check_model(
+        api_url=payload.api_url,
+        api_key=payload.api_key,
+        model=payload.model,
+        protocol_mode=payload.protocol_mode,
+        auth_type=payload.auth_type,
+    )
+
+
+@router.post("/list-models")
+async def list_models(payload: ModelConfigRequest) -> dict:
+    return await probe_service.list_models(
+        api_url=payload.api_url,
+        api_key=payload.api_key,
+        auth_type=payload.auth_type,
+    )

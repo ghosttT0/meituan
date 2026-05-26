@@ -97,3 +97,41 @@ export async function runSimulationFlow(fetchImpl, state, simulationConfig) {
   }
   return simulationResponse.json();
 }
+
+export async function checkModelConnection(fetchImpl, modelConfig) {
+  const response = await fetchImpl("/simulations/check-model", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      name: modelConfig.name ?? "",
+      api_url: modelConfig.apiUrl,
+      api_key: modelConfig.apiKey,
+      model: modelConfig.model,
+      protocol_mode: modelConfig.protocolMode ?? "auto",
+      auth_type: modelConfig.authType ?? "bearer",
+    }),
+  });
+  if (!response.ok) {
+    throw new Error("model check failed");
+  }
+  return response.json();
+}
+
+export async function fetchModelList(fetchImpl, modelConfig) {
+  const response = await fetchImpl("/simulations/list-models", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      name: modelConfig.name ?? "",
+      api_url: modelConfig.apiUrl,
+      api_key: modelConfig.apiKey,
+      model: modelConfig.model ?? "",
+      protocol_mode: modelConfig.protocolMode ?? "auto",
+      auth_type: modelConfig.authType ?? "bearer",
+    }),
+  });
+  if (!response.ok) {
+    throw new Error("list models failed");
+  }
+  return response.json();
+}

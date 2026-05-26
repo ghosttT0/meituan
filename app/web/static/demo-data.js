@@ -56,6 +56,17 @@ export function createInitialState() {
       primaryBranch: "cooperative",
       maxTurns: 6,
     },
+    modelConfig: {
+      name: "配置 1",
+      apiUrl: "",
+      apiKey: "",
+      model: "",
+      authType: "bearer",
+      protocolMode: "auto",
+      modelOptions: [],
+      lastCheck: null,
+    },
+    modelConfigOpen: false,
   };
 }
 

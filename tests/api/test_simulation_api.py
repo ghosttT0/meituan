@@ -76,3 +76,43 @@ def test_simulation_api_runs_mock_closed_loop() -> None:
     assert body["profile_id"] == "cooperative"
     assert body["termination_reason"] in {"task_complete", "max_turns"}
     assert "evaluation" in body
+
+
+def test_check_model_endpoint_returns_probe_result() -> None:
+    client = TestClient(app)
+
+    response = client.post(
+        "/simulations/check-model",
+        json={
+            "name": "mimo",
+            "api_url": "https://hotaruapi.com/v1",
+            "api_key": "test-key",
+            "model": "gpt-4o-mini",
+            "protocol_mode": "auto",
+            "auth_type": "bearer",
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert "ok" in body
+    assert "protocol_type" in body
+    assert "reply_preview" in body
+
+
+def test_list_models_endpoint_returns_model_names() -> None:
+    client = TestClient(app)
+
+    response = client.post(
+        "/simulations/list-models",
+        json={
+            "api_url": "https://hotaruapi.com/v1",
+            "api_key": "test-key",
+            "auth_type": "bearer",
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert "ok" in body
+    assert "models" in body

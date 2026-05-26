@@ -1,4 +1,5 @@
 from fastapi.testclient import TestClient
+import re
 
 from app.main import app
 
@@ -28,6 +29,8 @@ def test_demo_page_contains_dashboard_shell_and_accordions() -> None:
         "履约数字人外呼评估驾驶舱",
         "任务指令遵循自动评测演示",
         'id="demo-header"',
+        'id="open-model-config-button"',
+        'id="model-config-modal"',
         'id="demo-input-panel"',
         'id="demo-summary-panel"',
         'id="view-mode-results"',
@@ -51,3 +54,20 @@ def test_demo_styles_include_responsive_dashboard_rules() -> None:
     assert "grid-template-columns: 400px minmax(0, 1fr);" in css
     assert "@media (max-width: 1100px)" in css
     assert "--primary: #38bdf8;" in css
+
+
+def test_demo_page_uses_cache_busted_asset_urls() -> None:
+    client = TestClient(app)
+
+    html = client.get("/demo").text
+
+    assert re.search(r'/demo/assets/demo\.css\?v=\d+', html)
+    assert re.search(r'/demo/assets/demo-view\.js\?v=\d+', html)
+
+
+def test_demo_page_html_is_no_store() -> None:
+    client = TestClient(app)
+
+    response = client.get("/demo")
+
+    assert "no-store" in response.headers["cache-control"]

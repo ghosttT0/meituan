@@ -128,3 +128,23 @@ test("buildSimulationDialogueHtml renders chat bubbles", () => {
 test("buildExportFilename uses the run id", () => {
   assert.equal(view.buildExportFilename("run_demo"), "evaluation-run_demo.json");
 });
+
+test("buildModelConfigModalHtml renders config fields and actions", () => {
+  const html = view.buildModelConfigModalHtml({
+    name: "mimo",
+    apiUrl: "https://hotaruapi.com/v1",
+    apiKey: "secret-key",
+    model: "gpt-4o-mini",
+    authType: "bearer",
+    protocolMode: "auto",
+  });
+
+  assert.match(html, /API 配置列表/);
+  assert.match(html, /id="model-config-name"/);
+  assert.match(html, /id="model-config-api-url"/);
+  assert.match(html, /id="model-config-api-key"/);
+  assert.match(html, /id="model-config-model"/);
+  assert.match(html, /id="fetch-model-list-button"/);
+  assert.match(html, /id="check-model-button"/);
+  assert.match(html, /id="save-model-config-button"/);
+});

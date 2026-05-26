@@ -1,4 +1,9 @@
-import { runEvaluationFlow, runSimulationFlow } from "./demo-api.js";
+import {
+  checkModelConnection,
+  fetchModelList,
+  runEvaluationFlow,
+  runSimulationFlow,
+} from "./demo-api.js";
 import {
   PRESET_CASES,
   applyPreset,
@@ -28,6 +33,21 @@ const PROFILE_LABELS = {
   interrupting: "打断型",
   questioning: "追问型",
 };
+
+const MODEL_CONFIG_STORAGE_KEY = "demoModelConfig";
+
+export function loadModelConfigFromStorage(storage = globalThis.localStorage) {
+  try {
+    const raw = storage?.getItem(MODEL_CONFIG_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+export function saveModelConfigToStorage(modelConfig, storage = globalThis.localStorage) {
+  storage?.setItem(MODEL_CONFIG_STORAGE_KEY, JSON.stringify(modelConfig));
+}
 
 export function buildScoreCards(result) {
   const labels = {
@@ -59,9 +79,7 @@ export function buildAccordionSections(result) {
         { title: "状态轨迹", body: (result.state_trace ?? []).join(" → ") },
         {
           title: "模拟对话",
-          body: (result.turns ?? [])
-            .map((turn) => `${turn.speaker}: ${turn.text}`)
-            .join("\n"),
+          body: (result.turns ?? []).map((turn) => `${turn.speaker}: ${turn.text}`).join("\n"),
         },
       ]
     : [];
@@ -95,6 +113,49 @@ export function buildAccordionSections(result) {
 
 export function buildExportFilename(runId) {
   return `evaluation-${runId}.json`;
+}
+
+export function buildModelConfigModalHtml(modelConfig) {
+  const modelOptions = (modelConfig.modelOptions ?? [])
+    .map(
+      (item) =>
+        `<option value="${item}"${item === modelConfig.model ? " selected" : ""}>${item}</option>`,
+    )
+    .join("");
+
+  return `
+    <div class="modal-backdrop">
+      <section class="modal-card">
+        <div class="section-header modal-header">
+          <h2>API 配置列表</h2>
+          <button id="close-model-config-button" type="button" class="ghost-button">关闭</button>
+        </div>
+        <div class="model-config-block">
+          <p class="config-title">配置 1（使用中）</p>
+          <label class="field-label" for="model-config-name">名称（选填）</label>
+          <input id="model-config-name" class="text-input" type="text" value="${modelConfig.name ?? ""}" />
+          <label class="field-label" for="model-config-api-url">API 地址</label>
+          <input id="model-config-api-url" class="text-input" type="text" value="${modelConfig.apiUrl ?? ""}" />
+          <label class="field-label" for="model-config-api-key">API 密钥</label>
+          <div class="api-key-row">
+            <input id="model-config-api-key" class="text-input" type="password" value="${modelConfig.apiKey ?? ""}" />
+            <button id="toggle-model-config-key" type="button" class="icon-button">显示</button>
+          </div>
+          <label class="field-label" for="model-config-model">模型名称</label>
+          <div class="model-row">
+            <input id="model-config-model" class="text-input" type="text" value="${modelConfig.model ?? ""}" list="model-options-list" />
+            <button id="fetch-model-list-button" type="button" class="ghost-button">获取</button>
+          </div>
+          <datalist id="model-options-list">${modelOptions}</datalist>
+          <div class="mode-toggle">
+            <button id="check-model-button" type="button">测试连接</button>
+            <button id="save-model-config-button" type="button">保存配置</button>
+          </div>
+          <section id="model-check-result" class="status-banner">${modelConfig.lastCheck?.message ?? "尚未检测模型连接"}</section>
+        </div>
+      </section>
+    </div>
+  `;
 }
 
 export function buildInputPanelHtml(state) {
@@ -251,7 +312,8 @@ function renderResultPanel(documentRef, state) {
   documentRef.getElementById("summary-review-flag").textContent = result.needs_review ? "建议人工复核" : "无需人工复核";
 
   const scoreCards = buildScoreCards(result);
-  const simulationCards = state.runMode === "simulation" && state.lastResult ? buildSimulationCards(state.lastResult) : [];
+  const simulationCards =
+    state.runMode === "simulation" && state.lastResult ? buildSimulationCards(state.lastResult) : [];
   documentRef.getElementById("scorecard-grid").innerHTML = [
     ...scoreCards.map(
       (item) => `<article class="scorecard-item"><p>${item.title}</p><strong>${item.value}</strong></article>`,
@@ -268,10 +330,7 @@ function renderResultPanel(documentRef, state) {
   documentRef.getElementById("accordion-rules").innerHTML = sections.rules
     .map((item) => `<article><strong>${item.title}</strong><p>${item.body}</p></article>`)
     .join("");
-  documentRef.getElementById("accordion-judge").innerHTML = [
-    ...sections.judge,
-    ...sections.simulation,
-  ]
+  documentRef.getElementById("accordion-judge").innerHTML = [...sections.judge, ...sections.simulation]
     .map((item) => `<article><strong>${item.title}</strong><p>${item.body}</p></article>`)
     .join("");
   documentRef.getElementById("accordion-json").textContent = sections.rawJson;
@@ -282,14 +341,18 @@ function renderResultPanel(documentRef, state) {
   const resultDetailsPanel = documentRef.getElementById("result-details-panel");
   const resultsButton = documentRef.getElementById("view-mode-results");
   const conversationButton = documentRef.getElementById("view-mode-conversation");
-
   const conversationEnabled = state.runMode === "simulation";
   resultsButton.dataset.active = state.rightPanelMode === "results" ? "true" : "false";
   conversationButton.dataset.active = state.rightPanelMode === "conversation" ? "true" : "false";
   conversationButton.disabled = !conversationEnabled;
-
   resultDetailsPanel.style.display = state.rightPanelMode === "results" ? "grid" : "none";
   dialoguePanel.style.display = state.rightPanelMode === "conversation" ? "block" : "none";
+}
+
+function renderModelConfigModal(documentRef, state) {
+  const modal = documentRef.getElementById("model-config-modal");
+  modal.innerHTML = state.modelConfigOpen ? buildModelConfigModalHtml(state.modelConfig) : "";
+  modal.hidden = !state.modelConfigOpen;
 }
 
 function syncStateFromInputs(documentRef, state) {
@@ -316,12 +379,117 @@ function syncStateFromInputs(documentRef, state) {
   return next;
 }
 
-export function bootstrapDemo(documentRef = document, fetchImpl = fetch) {
-  let state = createInitialState();
+export function bootstrapDemo(documentRef = document, fetchImpl = fetch, storage = globalThis.localStorage) {
+  const initial = createInitialState();
+  const savedModelConfig = loadModelConfigFromStorage(storage);
+  let state = {
+    ...initial,
+    modelConfig: { ...initial.modelConfig, ...(savedModelConfig ?? {}) },
+  };
+
+  const bindModelModal = () => {
+    if (!state.modelConfigOpen) return;
+
+    documentRef.getElementById("close-model-config-button").onclick = () => {
+      state = { ...state, modelConfigOpen: false };
+      rerender();
+    };
+
+    documentRef.getElementById("toggle-model-config-key").onclick = () => {
+      const input = documentRef.getElementById("model-config-api-key");
+      input.type = input.type === "password" ? "text" : "password";
+    };
+
+    documentRef.getElementById("save-model-config-button").onclick = () => {
+      state = {
+        ...state,
+        modelConfig: {
+          ...state.modelConfig,
+          name: documentRef.getElementById("model-config-name").value.trim(),
+          apiUrl: documentRef.getElementById("model-config-api-url").value.trim(),
+          apiKey: documentRef.getElementById("model-config-api-key").value.trim(),
+          model: documentRef.getElementById("model-config-model").value.trim(),
+        },
+      };
+      saveModelConfigToStorage(state.modelConfig, storage);
+      rerender();
+    };
+
+    documentRef.getElementById("fetch-model-list-button").onclick = async () => {
+      const draft = {
+        ...state.modelConfig,
+        name: documentRef.getElementById("model-config-name").value.trim(),
+        apiUrl: documentRef.getElementById("model-config-api-url").value.trim(),
+        apiKey: documentRef.getElementById("model-config-api-key").value.trim(),
+        model: documentRef.getElementById("model-config-model").value.trim(),
+      };
+      try {
+        const result = await fetchModelList(fetchImpl, draft);
+        state = {
+          ...state,
+          modelConfig: {
+            ...draft,
+            modelOptions: result.models ?? [],
+            lastCheck: {
+              message: result.ok
+                ? `已获取 ${result.models.length} 个模型`
+                : result.error_message,
+            },
+          },
+        };
+        saveModelConfigToStorage(state.modelConfig, storage);
+        rerender();
+      } catch (_error) {
+        state = {
+          ...state,
+          modelConfig: { ...draft, lastCheck: { message: "获取模型列表失败" } },
+        };
+        rerender();
+      }
+    };
+
+    documentRef.getElementById("check-model-button").onclick = async () => {
+      const draft = {
+        ...state.modelConfig,
+        name: documentRef.getElementById("model-config-name").value.trim(),
+        apiUrl: documentRef.getElementById("model-config-api-url").value.trim(),
+        apiKey: documentRef.getElementById("model-config-api-key").value.trim(),
+        model: documentRef.getElementById("model-config-model").value.trim(),
+      };
+      try {
+        const result = await checkModelConnection(fetchImpl, draft);
+        state = {
+          ...state,
+          modelConfig: {
+            ...draft,
+            lastCheck: {
+              message: result.ok
+                ? `检测成功：${result.protocol_type} / ${result.reply_preview}`
+                : result.error_message,
+            },
+          },
+        };
+        saveModelConfigToStorage(state.modelConfig, storage);
+        rerender();
+      } catch (_error) {
+        state = {
+          ...state,
+          modelConfig: { ...draft, lastCheck: { message: "检测模型失败" } },
+        };
+        rerender();
+      }
+    };
+  };
 
   const rerender = () => {
     renderInputPanel(documentRef, state);
     renderResultPanel(documentRef, state);
+    renderModelConfigModal(documentRef, state);
+
+    documentRef.getElementById("open-model-config-button").onclick = () => {
+      state = { ...state, modelConfigOpen: true };
+      rerender();
+    };
 
     documentRef.getElementById("preset-mode-button").onclick = () => {
       state = switchMode(state, "preset");
@@ -371,7 +539,11 @@ export function bootstrapDemo(documentRef = document, fetchImpl = fetch) {
     });
 
     documentRef.getElementById("reset-demo-button").onclick = () => {
-      state = createInitialState();
+      state = {
+        ...createInitialState(),
+        modelConfig: state.modelConfig,
+        modelConfigOpen: false,
+      };
       rerender();
     };
 
@@ -396,7 +568,8 @@ export function bootstrapDemo(documentRef = document, fetchImpl = fetch) {
         state = {
           ...state,
           status: "error",
-          errorMessage: state.runMode === "simulation" ? "运行模拟失败，请检查配置。" : "运行评估失败，请检查输入格式。",
+          errorMessage:
+            state.runMode === "simulation" ? "运行模拟失败，请检查配置。" : "运行评估失败，请检查输入格式。",
         };
         rerender();
       }
@@ -415,6 +588,8 @@ export function bootstrapDemo(documentRef = document, fetchImpl = fetch) {
       link.click();
       URL.revokeObjectURL(link.href);
     };
+
+    bindModelModal();
   };
 
   rerender();
