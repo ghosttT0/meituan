@@ -148,3 +148,50 @@ test("buildModelConfigModalHtml renders config fields and actions", () => {
   assert.match(html, /id="check-model-button"/);
   assert.match(html, /id="save-model-config-button"/);
 });
+
+test("mergeModelConfigIntoState syncs modal config into simulation config", () => {
+  const state = {
+    simulationConfig: {
+      adapterType: "mock",
+      endpoint: "",
+      profileId: "busy",
+      primaryBranch: "busy",
+      maxTurns: 4,
+    },
+    modelConfig: {},
+  };
+
+  const next = view.mergeModelConfigIntoState(state, {
+    name: "mimo",
+    apiUrl: "https://hotaruapi.com/v1",
+    apiKey: "secret-key",
+    model: "gpt-4o-mini",
+    authType: "bearer",
+    protocolMode: "auto",
+  });
+
+  assert.equal(next.simulationConfig.adapterType, "http");
+  assert.equal(next.simulationConfig.endpoint, "https://hotaruapi.com/v1");
+  assert.equal(next.modelConfig.apiKey, "secret-key");
+});
+
+test("mergeModelConfigIntoState syncs modal config to simulation config", () => {
+  const next = view.mergeModelConfigIntoState(
+    {
+      simulationConfig: { adapterType: "mock", endpoint: "", profileId: "busy", primaryBranch: "busy", maxTurns: 4 },
+      modelConfig: {},
+    },
+    {
+      name: "mimo",
+      apiUrl: "https://hotaruapi.com/v1",
+      apiKey: "secret-key",
+      model: "gpt-4o-mini",
+      authType: "bearer",
+      protocolMode: "auto",
+    },
+  );
+
+  assert.equal(next.simulationConfig.adapterType, "http");
+  assert.equal(next.simulationConfig.endpoint, "https://hotaruapi.com/v1");
+  assert.equal(next.modelConfig.apiKey, "secret-key");
+});

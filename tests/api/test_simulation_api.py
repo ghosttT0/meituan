@@ -1,4 +1,5 @@
 from fastapi.testclient import TestClient
+from unittest.mock import AsyncMock, patch
 
 from app.main import app
 
@@ -76,6 +77,58 @@ def test_simulation_api_runs_mock_closed_loop() -> None:
     assert body["profile_id"] == "cooperative"
     assert body["termination_reason"] in {"task_complete", "max_turns"}
     assert "evaluation" in body
+
+
+def test_simulation_api_accepts_http_adapter_credentials() -> None:
+    client = TestClient(app)
+
+    class _FakeResult:
+        def model_dump(self):
+            return {
+                "simulation_id": "sim_http",
+                "profile_id": "cooperative",
+                "termination_reason": "task_complete",
+                "evaluation": {},
+            }
+
+    with patch("app.api.routes_simulation.ConversationRunner.run_http", new_callable=AsyncMock) as mock_run_http:
+        mock_run_http.return_value = _FakeResult()
+
+        response = client.post(
+            "/simulations/run",
+            json={
+                "spec": {
+                    "spec_id": "spec_http",
+                    "instruction_id": "instr_http",
+                    "version": "v2",
+                    "task_goal": "确认收货时间",
+                    "required_steps": [],
+                    "required_slots": [],
+                    "soft_dimensions": [],
+                },
+                "task_instruction_text": "请确认用户身份，再确认收货时间。",
+                "adapter": {
+                    "type": "http",
+                    "endpoint": "https://hotaruapi.com/v1",
+                    "api_key": "secret-key",
+                    "model": "gpt-4o-mini",
+                    "auth_type": "bearer",
+                },
+                "simulation": {
+                    "profile_id": "cooperative",
+                    "primary_branch": "cooperative",
+                    "max_turns": 2,
+                },
+            },
+        )
+
+    assert response.status_code == 200
+    mock_run_http.assert_awaited_once()
+    kwargs = mock_run_http.await_args.kwargs
+    assert kwargs["endpoint"] == "https://hotaruapi.com/v1"
+    assert kwargs["api_key"] == "secret-key"
+    assert kwargs["model"] == "gpt-4o-mini"
+    assert kwargs["auth_type"] == "bearer"
 
 
 def test_check_model_endpoint_returns_probe_result() -> None:

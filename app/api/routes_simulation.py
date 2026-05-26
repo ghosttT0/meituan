@@ -9,6 +9,9 @@ from app.simulators.model_probe import ModelProbeService
 class AdapterConfig(BaseModel):
     type: str = "mock"
     endpoint: str | None = None
+    api_key: str = ""
+    model: str = ""
+    auth_type: str = "bearer"
 
 
 class SimulationConfig(BaseModel):
@@ -58,6 +61,9 @@ async def run_simulation(payload: SimulationRequest) -> dict:
             profile_id=payload.simulation.profile_id,
             primary_branch=payload.simulation.primary_branch,
             endpoint=payload.adapter.endpoint,
+            api_key=payload.adapter.api_key,
+            model=payload.adapter.model,
+            auth_type=payload.adapter.auth_type,
             max_turns=payload.simulation.max_turns,
             task_instruction_text=payload.task_instruction_text,
         )

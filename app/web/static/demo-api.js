@@ -35,12 +35,16 @@ export function buildEvaluationPayload(spec, state) {
 }
 
 export function buildSimulationPayload(spec, state, simulationConfig) {
+  const endpoint = simulationConfig.endpoint || state.modelConfig?.apiUrl || null;
   return {
     spec,
     task_instruction_text: state.instructionText,
     adapter: {
       type: simulationConfig.adapterType,
-      endpoint: simulationConfig.endpoint ?? null,
+      endpoint,
+      api_key: state.modelConfig?.apiKey ?? "",
+      model: state.modelConfig?.model ?? "",
+      auth_type: state.modelConfig?.authType ?? "bearer",
     },
     simulation: {
       profile_id: simulationConfig.profileId,
@@ -73,7 +77,10 @@ export async function runEvaluationFlow(fetchImpl, state) {
 }
 
 export async function runSimulationFlow(fetchImpl, state, simulationConfig) {
-  if (simulationConfig.adapterType === "http" && !simulationConfig.endpoint) {
+  if (
+    simulationConfig.adapterType === "http" &&
+    !(simulationConfig.endpoint || state.modelConfig?.apiUrl)
+  ) {
     throw new Error("missing simulation endpoint");
   }
 

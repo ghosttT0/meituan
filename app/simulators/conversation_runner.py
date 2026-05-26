@@ -42,12 +42,21 @@ class ConversationRunner:
         profile_id: str,
         primary_branch: str,
         endpoint: str,
+        api_key: str = "",
+        model: str = "",
+        auth_type: str = "bearer",
         max_turns: int = 8,
         task_instruction_text: str = "",
     ) -> SimulationRunResult:
         adapter = HttpModelAdapter(endpoint=endpoint)
         return await self._run(
-            adapter, spec, profile_id, primary_branch, max_turns, task_instruction_text
+            adapter,
+            spec,
+            profile_id,
+            primary_branch,
+            max_turns,
+            task_instruction_text,
+            {"api_key": api_key, "model": model, "auth_type": auth_type},
         )
 
     async def _run(
@@ -58,6 +67,7 @@ class ConversationRunner:
         primary_branch: str,
         max_turns: int,
         task_instruction_text: str,
+        adapter_config: dict | None = None,
     ) -> SimulationRunResult:
         scenario = self.scenario_builder.build(
             spec, profile_id=profile_id, primary_branch=primary_branch, max_turns=max_turns
@@ -69,7 +79,11 @@ class ConversationRunner:
         signal = self.reply_analyzer.analyze("")
         generation_mode = "ai"
 
-        await adapter.start_session({"task_instruction_text": task_instruction_text or spec.task_goal})
+        session_config = {
+            "task_instruction_text": task_instruction_text or spec.task_goal,
+            **(adapter_config or {}),
+        }
+        await adapter.start_session(session_config)
 
         for turn_index in range(max_turns):
             suggested_intent = self.policy_engine.next_intent(

@@ -50,6 +50,7 @@ class HttpModelAdapter:
     ) -> dict:
         return {
             "session_id": session_id,
+            "model": getattr(self, "model", ""),
             "task_instruction": task_instruction_text,
             "system_prompt": task_instruction_text,
             "history": history,
@@ -58,14 +59,23 @@ class HttpModelAdapter:
     async def start_session(self, config: dict) -> str:
         self.session_id = config.get("session_id", f"http_{uuid4().hex[:8]}")
         self.task_instruction_text = config.get("task_instruction_text", "")
+        self.api_key = config.get("api_key", "")
+        self.model = config.get("model", "")
+        self.auth_type = config.get("auth_type", "bearer")
         self.history = []
         return self.session_id
 
     async def send_user_message(self, message: str) -> str:
         self.history.append({"speaker": "user", "text": message})
+        headers = (
+            {"Authorization": f"Bearer {self.api_key}"}
+            if self.auth_type == "bearer" and self.api_key
+            else ({"api-key": self.api_key} if self.auth_type == "api-key" and self.api_key else {})
+        )
         async with httpx.AsyncClient(timeout=20) as client:
             response = await client.post(
                 self.endpoint,
+                headers=headers,
                 json=self.build_payload(self.session_id, self.history, self.task_instruction_text),
             )
         response.raise_for_status()

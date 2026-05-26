@@ -49,6 +49,18 @@ export function saveModelConfigToStorage(modelConfig, storage = globalThis.local
   storage?.setItem(MODEL_CONFIG_STORAGE_KEY, JSON.stringify(modelConfig));
 }
 
+export function mergeModelConfigIntoState(state, modelConfig) {
+  return {
+    ...state,
+    modelConfig,
+    simulationConfig: {
+      ...state.simulationConfig,
+      adapterType: modelConfig.apiUrl ? "http" : state.simulationConfig.adapterType,
+      endpoint: modelConfig.apiUrl || state.simulationConfig.endpoint,
+    },
+  };
+}
+
 export function buildScoreCards(result) {
   const labels = {
     flow_following: "流程遵循",
@@ -382,10 +394,10 @@ function syncStateFromInputs(documentRef, state) {
 export function bootstrapDemo(documentRef = document, fetchImpl = fetch, storage = globalThis.localStorage) {
   const initial = createInitialState();
   const savedModelConfig = loadModelConfigFromStorage(storage);
-  let state = {
-    ...initial,
-    modelConfig: { ...initial.modelConfig, ...(savedModelConfig ?? {}) },
-  };
+  let state = mergeModelConfigIntoState(
+    initial,
+    { ...initial.modelConfig, ...(savedModelConfig ?? {}) },
+  );
 
   const bindModelModal = () => {
     if (!state.modelConfigOpen) return;
@@ -401,16 +413,14 @@ export function bootstrapDemo(documentRef = document, fetchImpl = fetch, storage
     };
 
     documentRef.getElementById("save-model-config-button").onclick = () => {
-      state = {
-        ...state,
-        modelConfig: {
-          ...state.modelConfig,
-          name: documentRef.getElementById("model-config-name").value.trim(),
-          apiUrl: documentRef.getElementById("model-config-api-url").value.trim(),
-          apiKey: documentRef.getElementById("model-config-api-key").value.trim(),
-          model: documentRef.getElementById("model-config-model").value.trim(),
-        },
+      const nextModelConfig = {
+        ...state.modelConfig,
+        name: documentRef.getElementById("model-config-name").value.trim(),
+        apiUrl: documentRef.getElementById("model-config-api-url").value.trim(),
+        apiKey: documentRef.getElementById("model-config-api-key").value.trim(),
+        model: documentRef.getElementById("model-config-model").value.trim(),
       };
+      state = mergeModelConfigIntoState(state, nextModelConfig);
       saveModelConfigToStorage(state.modelConfig, storage);
       rerender();
     };
@@ -425,25 +435,22 @@ export function bootstrapDemo(documentRef = document, fetchImpl = fetch, storage
       };
       try {
         const result = await fetchModelList(fetchImpl, draft);
-        state = {
-          ...state,
-          modelConfig: {
-            ...draft,
-            modelOptions: result.models ?? [],
-            lastCheck: {
-              message: result.ok
-                ? `已获取 ${result.models.length} 个模型`
-                : result.error_message,
-            },
+        state = mergeModelConfigIntoState(state, {
+          ...draft,
+          modelOptions: result.models ?? [],
+          lastCheck: {
+            message: result.ok
+              ? `已获取 ${result.models.length} 个模型`
+              : result.error_message,
           },
-        };
+        });
         saveModelConfigToStorage(state.modelConfig, storage);
         rerender();
       } catch (_error) {
-        state = {
-          ...state,
-          modelConfig: { ...draft, lastCheck: { message: "获取模型列表失败" } },
-        };
+        state = mergeModelConfigIntoState(state, {
+          ...draft,
+          lastCheck: { message: "获取模型列表失败" },
+        });
         rerender();
       }
     };
@@ -458,24 +465,21 @@ export function bootstrapDemo(documentRef = document, fetchImpl = fetch, storage
       };
       try {
         const result = await checkModelConnection(fetchImpl, draft);
-        state = {
-          ...state,
-          modelConfig: {
-            ...draft,
-            lastCheck: {
-              message: result.ok
-                ? `检测成功：${result.protocol_type} / ${result.reply_preview}`
-                : result.error_message,
-            },
+        state = mergeModelConfigIntoState(state, {
+          ...draft,
+          lastCheck: {
+            message: result.ok
+              ? `检测成功：${result.protocol_type} / ${result.reply_preview}`
+              : result.error_message,
           },
-        };
+        });
         saveModelConfigToStorage(state.modelConfig, storage);
         rerender();
       } catch (_error) {
-        state = {
-          ...state,
-          modelConfig: { ...draft, lastCheck: { message: "检测模型失败" } },
-        };
+        state = mergeModelConfigIntoState(state, {
+          ...draft,
+          lastCheck: { message: "检测模型失败" },
+        });
         rerender();
       }
     };

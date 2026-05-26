@@ -94,9 +94,17 @@ test("runSimulationFlow calls compile then simulation endpoint", async () => {
     {
       instructionText: "请确认收货时间",
       conversationText: "agent: 您好\nuser: 明天下午可以",
+      modelConfig: {
+        apiUrl: "https://hotaruapi.com/v1",
+        apiKey: "secret-key",
+        model: "gpt-4o-mini",
+        authType: "bearer",
+        protocolMode: "auto",
+      },
     },
     {
-      adapterType: "mock",
+      adapterType: "http",
+      endpoint: "",
       profileId: "questioning",
       primaryBranch: "questioning",
       maxTurns: 4,
@@ -105,7 +113,11 @@ test("runSimulationFlow calls compile then simulation endpoint", async () => {
 
   assert.equal(calls[0].url, "/specs/compile");
   assert.equal(calls[1].url, "/simulations/run");
-  assert.equal(calls[1].body.adapter.type, "mock");
+  assert.equal(calls[1].body.adapter.type, "http");
+  assert.equal(calls[1].body.adapter.endpoint, "https://hotaruapi.com/v1");
+  assert.equal(calls[1].body.adapter.api_key, "secret-key");
+  assert.equal(calls[1].body.adapter.model, "gpt-4o-mini");
+  assert.equal(calls[1].body.adapter.auth_type, "bearer");
   assert.equal(calls[1].body.simulation.profile_id, "questioning");
   assert.equal(calls[1].body.task_instruction_text, "请确认收货时间");
   assert.equal(result.simulation_id, "sim_1");
