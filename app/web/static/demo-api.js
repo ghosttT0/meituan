@@ -45,6 +45,7 @@ export function buildSimulationPayload(spec, state, simulationConfig) {
       api_key: state.modelConfig?.apiKey ?? "",
       model: state.modelConfig?.model ?? "",
       auth_type: state.modelConfig?.authType ?? "bearer",
+      protocol_mode: state.modelConfig?.protocolMode ?? "auto",
     },
     simulation: {
       profile_id: simulationConfig.profileId,

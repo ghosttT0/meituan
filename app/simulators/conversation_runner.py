@@ -45,6 +45,7 @@ class ConversationRunner:
         api_key: str = "",
         model: str = "",
         auth_type: str = "bearer",
+        protocol_mode: str = "auto",
         max_turns: int = 8,
         task_instruction_text: str = "",
     ) -> SimulationRunResult:
@@ -56,7 +57,12 @@ class ConversationRunner:
             primary_branch,
             max_turns,
             task_instruction_text,
-            {"api_key": api_key, "model": model, "auth_type": auth_type},
+            {
+                "api_key": api_key,
+                "model": model,
+                "auth_type": auth_type,
+                "protocol_mode": protocol_mode,
+            },
         )
 
     async def _run(

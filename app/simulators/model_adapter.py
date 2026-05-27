@@ -42,13 +42,25 @@ class MockModelAdapter:
 class HttpModelAdapter:
     def __init__(self, endpoint: str) -> None:
         self.endpoint = endpoint
-        self.request_url = self._normalize_endpoint(endpoint)
+        self.request_url = self._normalize_openai_endpoint(endpoint)
         self.session_id = ""
         self.history: list[dict] = []
 
     def build_payload(
         self, session_id: str, history: list[dict], task_instruction_text: str
     ) -> dict:
+        if getattr(self, "protocol_mode", "reply") == "openai":
+            messages = []
+            if task_instruction_text:
+                messages.append({"role": "system", "content": task_instruction_text})
+            for item in history:
+                speaker = item.get("speaker", "")
+                role = "assistant" if speaker in {"assistant", "agent"} else "user"
+                messages.append({"role": role, "content": item.get("text", "")})
+            return {
+                "model": getattr(self, "model", ""),
+                "messages": messages,
+            }
         return {
             "session_id": session_id,
             "model": getattr(self, "model", ""),
@@ -63,6 +75,12 @@ class HttpModelAdapter:
         self.api_key = config.get("api_key", "")
         self.model = config.get("model", "")
         self.auth_type = config.get("auth_type", "bearer")
+        self.protocol_mode = self._resolve_protocol_mode(config.get("protocol_mode", "auto"))
+        self.request_url = (
+            self.endpoint
+            if self.protocol_mode == "reply"
+            else self._normalize_openai_endpoint(self.endpoint)
+        )
         self.history = []
         return self.session_id
 
@@ -81,7 +99,11 @@ class HttpModelAdapter:
             )
         response.raise_for_status()
         data = response.json()
-        reply = data.get("reply") or data.get("content") or data.get("message")
+        reply = (
+            (data.get("choices") or [{}])[0].get("message", {}).get("content")
+            if self.protocol_mode == "openai"
+            else None
+        ) or data.get("reply") or data.get("content") or data.get("message")
         if not reply:
             raise KeyError("reply")
         self.history.append({"speaker": "assistant", "text": reply})
@@ -90,8 +112,16 @@ class HttpModelAdapter:
     async def end_session(self) -> None:
         self.history = []
 
-    def _normalize_endpoint(self, endpoint: str) -> str:
+    def _normalize_openai_endpoint(self, endpoint: str) -> str:
         trimmed = endpoint.rstrip("/")
         if trimmed.endswith("/chat/completions"):
             return trimmed
         return f"{trimmed}/chat/completions"
+
+    def _resolve_protocol_mode(self, protocol_mode: str) -> str:
+        if protocol_mode in {"openai", "reply"}:
+            return protocol_mode
+        trimmed = self.endpoint.rstrip("/").lower()
+        if trimmed.endswith("/chat/completions") or trimmed.endswith("/v1"):
+            return "openai"
+        return "reply"

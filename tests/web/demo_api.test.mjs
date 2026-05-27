@@ -118,6 +118,7 @@ test("runSimulationFlow calls compile then simulation endpoint", async () => {
   assert.equal(calls[1].body.adapter.api_key, "secret-key");
   assert.equal(calls[1].body.adapter.model, "gpt-4o-mini");
   assert.equal(calls[1].body.adapter.auth_type, "bearer");
+  assert.equal(calls[1].body.adapter.protocol_mode, "auto");
   assert.equal(calls[1].body.simulation.profile_id, "questioning");
   assert.equal(calls[1].body.task_instruction_text, "请确认收货时间");
   assert.equal(result.simulation_id, "sim_1");

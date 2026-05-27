@@ -12,6 +12,7 @@ class AdapterConfig(BaseModel):
     api_key: str = ""
     model: str = ""
     auth_type: str = "bearer"
+    protocol_mode: str = "auto"
 
 
 class SimulationConfig(BaseModel):
@@ -64,6 +65,7 @@ async def run_simulation(payload: SimulationRequest) -> dict:
             api_key=payload.adapter.api_key,
             model=payload.adapter.model,
             auth_type=payload.adapter.auth_type,
+            protocol_mode=payload.adapter.protocol_mode,
             max_turns=payload.simulation.max_turns,
             task_instruction_text=payload.task_instruction_text,
         )

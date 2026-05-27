@@ -113,6 +113,7 @@ def test_simulation_api_accepts_http_adapter_credentials() -> None:
                     "api_key": "secret-key",
                     "model": "gpt-4o-mini",
                     "auth_type": "bearer",
+                    "protocol_mode": "auto",
                 },
                 "simulation": {
                     "profile_id": "cooperative",
@@ -129,6 +130,7 @@ def test_simulation_api_accepts_http_adapter_credentials() -> None:
     assert kwargs["api_key"] == "secret-key"
     assert kwargs["model"] == "gpt-4o-mini"
     assert kwargs["auth_type"] == "bearer"
+    assert kwargs["protocol_mode"] == "auto"
 
 
 def test_check_model_endpoint_returns_probe_result() -> None:
