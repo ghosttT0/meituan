@@ -11,8 +11,9 @@ test("createInitialState starts in preset mode with the first preset", () => {
   const state = demoData.createInitialState();
 
   assert.equal(state.mode, "preset");
-  assert.equal(state.activePresetId, "delivery_time");
-  assert.match(state.instructionText, /确认用户身份/);
+  assert.equal(state.activePresetId, "rider_station_task");
+  assert.match(state.instructionText, /你是美团外卖骑手的站长/);
+  assert.match(state.instructionText, /飞毛腿/);
   assert.match(state.conversationText, /agent:/);
 });
 
@@ -27,9 +28,10 @@ test("switchMode preserves current text when switching to manual", () => {
 
 test("applyPreset swaps the active preset fields", () => {
   const state = demoData.createInitialState();
-  const next = demoData.applyPreset(state, "address_check");
+  const next = demoData.applyPreset(state, "course_live_task");
 
-  assert.equal(next.activePresetId, "address_check");
-  assert.match(next.instructionText, /地址/);
+  assert.equal(next.activePresetId, "course_live_task");
+  assert.match(next.instructionText, /低延迟直播/);
+  assert.match(next.instructionText, /培训机构\/校区的负责人/);
   assert.match(next.conversationText, /user:/);
 });

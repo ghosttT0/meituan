@@ -42,7 +42,7 @@ test("buildInputPanelHtml exposes action hooks for browser binding", () => {
   const markup = view.buildInputPanelHtml({
     mode: "preset",
     runMode: "evaluation",
-    activePresetId: "delivery_time",
+    activePresetId: "rider_station_task",
     instructionText: "请确认收货时间",
     conversationText: "agent: 您好",
     status: "idle",
@@ -58,7 +58,7 @@ test("buildInputPanelHtml exposes simulation controls in simulation mode", () =>
   const markup = view.buildInputPanelHtml({
     mode: "preset",
     runMode: "simulation",
-    activePresetId: "delivery_time",
+    activePresetId: "rider_station_task",
     instructionText: "请确认收货时间",
     conversationText: "agent: 您好",
     status: "idle",
