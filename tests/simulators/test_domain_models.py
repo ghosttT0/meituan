@@ -62,3 +62,18 @@ def test_simulated_user_reply_model() -> None:
 
     assert reply.state == "questioning"
     assert reply.reply == "为什么必须这样？"
+
+
+def test_user_profile_supports_question_pool_preferences() -> None:
+    profile = UserProfile(
+        profile_id="questioning",
+        name="追问型",
+        cooperation_level=0.6,
+        patience_level=0.7,
+        question_probability=0.9,
+        preferred_question_sources=["faq", "step"],
+        max_question_rounds=3,
+    )
+
+    assert profile.preferred_question_sources == ["faq", "step"]
+    assert profile.max_question_rounds == 3

@@ -9,6 +9,7 @@ from app.storage.repo_eval import EvaluationRepository
 
 
 class EvaluationRequest(BaseModel):
+    evaluation_mode: str = "dual_arbitration"
     spec: EvalSpec
     conversation: Conversation
 
@@ -22,7 +23,11 @@ router = APIRouter(prefix="/evaluations", tags=["evaluations"])
 
 @router.post("/run")
 def run_evaluation(payload: EvaluationRequest, request: Request) -> dict:
-    result = EvaluationRunner().run(payload.spec, payload.conversation)
+    result = EvaluationRunner().run(
+        payload.spec,
+        payload.conversation,
+        evaluation_mode=payload.evaluation_mode,
+    )
     repo = EvaluationRepository(request.app.state.db)
     repo.save_json(result.run_id, result.model_dump())
     return result.model_dump()
@@ -33,7 +38,11 @@ def run_batch(payload: BatchEvaluationRequest, request: Request) -> dict:
     repo = EvaluationRepository(request.app.state.db)
     results = []
     for item in payload.items:
-        result = EvaluationRunner().run(item.spec, item.conversation)
+        result = EvaluationRunner().run(
+            item.spec,
+            item.conversation,
+            evaluation_mode=item.evaluation_mode,
+        )
         repo.save_json(result.run_id, result.model_dump())
         results.append(result.model_dump())
     export_path = export_batch_summary(

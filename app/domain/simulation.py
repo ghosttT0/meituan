@@ -10,6 +10,11 @@ class UserProfile(BaseModel):
     question_probability: float = 0.0
     reject_probability: float = 0.0
     style_prompt: str = ""
+    preferred_question_sources: list[str] = Field(default_factory=list)
+    preferred_question_tags: list[str] = Field(default_factory=list)
+    max_question_rounds: int = 1
+    max_objection_rounds: int = 1
+    max_interrupt_rounds: int = 1
 
 
 class SimulationScenario(BaseModel):
@@ -17,6 +22,9 @@ class SimulationScenario(BaseModel):
     spec_id: str
     profile_id: str
     primary_branch: str
+    scenario_key: str = "custom"
+    scenario_label: str = ""
+    user_goal: str = ""
     secondary_branch: str | None = None
     max_turns: int
     termination_policy: str
@@ -41,6 +49,7 @@ class SimulatedUserReply(BaseModel):
     intent: str
     reply: str
     should_end: bool = False
+    emotion: str = "neutral"  # neutral | skeptical | resistant | rejecting
 
 
 class ModelReplySignal(BaseModel):
@@ -53,7 +62,18 @@ class ModelReplySignal(BaseModel):
 
 class SimulationRunResult(BaseModel):
     simulation_id: str
+    batch_mode: bool = False
+    batch_count: int = 1
     scenario_id: str
+    scenario_key: str = "custom"
+    scenario_label: str = ""
+    user_goal: str = ""
+    scenario_focus: list[str] = Field(default_factory=list)
+    scenario_diagnosis: list[str] = Field(default_factory=list)
+    scenario_summary: str = ""
+    profile_distribution: dict[str, int] = Field(default_factory=dict)
+    requested_profile_id: str = ""
+    random_seed: int | None = None
     profile_id: str
     termination_reason: str
     generation_mode: str = "template_fallback"
@@ -61,3 +81,5 @@ class SimulationRunResult(BaseModel):
     state_trace: list[str] = Field(default_factory=list)
     turns: list[dict] = Field(default_factory=list)
     evaluation: dict = Field(default_factory=dict)
+    debug_logs: list[str] = Field(default_factory=list)
+    runs: list[dict] = Field(default_factory=list)

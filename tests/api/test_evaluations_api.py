@@ -49,6 +49,8 @@ def test_run_evaluation_returns_scorecard() -> None:
     assert response.status_code == 200
     assert response.json()["overall_score"] >= 80
     assert response.json()["hard_fail"] is False
+    assert len(response.json()["panel_results"]) == 2
+    assert "arbitration_records" in response.json()
 
 
 def test_get_evaluation_run_returns_saved_payload() -> None:
@@ -114,3 +116,110 @@ def test_compile_then_evaluate_then_fetch_round_trip() -> None:
     assert result.status_code == 200
     assert fetched.status_code == 200
     assert fetched.json()["conversation_id"] == "conv_round_trip"
+
+
+def test_run_evaluation_includes_scenario_specific_rules() -> None:
+    client = TestClient(app)
+    spec = {
+        "spec_id": "spec_eval_scenario",
+        "instruction_id": "instr_eval_scenario",
+        "version": "v2",
+        "task_goal": "告知机构客户低延迟直播和标准直播的区别。",
+        "faq_items": [
+            {"faq_id": "faq_1", "raw_text": "低延迟直播更适合小班课，费用略高。"},
+            {"faq_id": "faq_2", "raw_text": "标准直播更适合大班课。"},
+        ],
+        "required_steps": [],
+        "required_slots": [],
+        "forbidden_actions": [],
+        "soft_dimensions": [],
+    }
+    conversation = {
+        "conversation_id": "conv_eval_scenario",
+        "instruction_id": "instr_eval_scenario",
+        "metadata": {"scenario_key": "faq_followup"},
+        "turns": [
+            {"turn_id": 1, "speaker": "user", "text": "低延迟直播和标准直播差在哪？"},
+            {"turn_id": 2, "speaker": "agent", "text": "低延迟直播更适合小班课，标准直播更适合大班课。"},
+        ],
+    }
+
+    response = client.post("/evaluations/run", json={"spec": spec, "conversation": conversation})
+
+    assert response.status_code == 200
+    rule_ids = {item["rule_id"] for item in response.json()["rule_results"]}
+    assert "scenario_faq_grounding" in rule_ids
+
+
+def test_run_evaluation_accepts_single_mode() -> None:
+    client = TestClient(app)
+
+    response = client.post(
+        "/evaluations/run",
+        json={
+            "evaluation_mode": "single",
+            "spec": {
+                "spec_id": "spec_single_mode",
+                "instruction_id": "instr_single_mode",
+                "version": "v1",
+                "task_goal": "确认收货时间",
+                "required_steps": [],
+                "required_slots": [],
+                "soft_dimensions": [
+                    {
+                        "id": "task_focus",
+                        "name": "任务聚焦度",
+                        "weight": 1.0,
+                        "rubric": ["保持任务推进"],
+                    }
+                ],
+            },
+            "conversation": {
+                "conversation_id": "conv_single_mode",
+                "instruction_id": "instr_single_mode",
+                "turns": [{"turn_id": 1, "speaker": "agent", "text": "您好，我来确认收货时间"}],
+            },
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["evaluation_mode"] == "single"
+    assert len(response.json()["panel_results"]) == 1
+    assert response.json()["arbitration_records"] == []
+
+
+def test_run_evaluation_accepts_dual_mode_without_arbitration() -> None:
+    client = TestClient(app)
+
+    response = client.post(
+        "/evaluations/run",
+        json={
+            "evaluation_mode": "dual",
+            "spec": {
+                "spec_id": "spec_dual_mode",
+                "instruction_id": "instr_dual_mode",
+                "version": "v1",
+                "task_goal": "确认收货时间",
+                "required_steps": [],
+                "required_slots": [],
+                "soft_dimensions": [
+                    {
+                        "id": "task_focus",
+                        "name": "任务聚焦度",
+                        "weight": 1.0,
+                        "rubric": ["保持任务推进"],
+                    }
+                ],
+            },
+            "conversation": {
+                "conversation_id": "conv_dual_mode",
+                "instruction_id": "instr_dual_mode",
+                "turns": [{"turn_id": 1, "speaker": "agent", "text": "您好，我来确认收货时间"}],
+            },
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["evaluation_mode"] == "dual"
+    assert len(response.json()["panel_results"]) == 2
+    assert response.json()["arbitration_records"] == []

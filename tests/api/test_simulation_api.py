@@ -67,6 +67,9 @@ def test_simulation_api_runs_mock_closed_loop() -> None:
             "simulation": {
                 "profile_id": "cooperative",
                 "primary_branch": "cooperative",
+                "scenario_key": "main_flow",
+                "batch_runs": 2,
+                "random_seed": 2026,
                 "max_turns": 6,
             },
         },
@@ -118,6 +121,9 @@ def test_simulation_api_accepts_http_adapter_credentials() -> None:
                 "simulation": {
                     "profile_id": "cooperative",
                     "primary_branch": "cooperative",
+                    "scenario_key": "faq_followup",
+                    "batch_runs": 3,
+                    "random_seed": 2027,
                     "max_turns": 2,
                 },
             },
@@ -131,6 +137,9 @@ def test_simulation_api_accepts_http_adapter_credentials() -> None:
     assert kwargs["model"] == "gpt-4o-mini"
     assert kwargs["auth_type"] == "bearer"
     assert kwargs["protocol_mode"] == "auto"
+    assert kwargs["scenario_key"] == "faq_followup"
+    assert kwargs["batch_runs"] == 3
+    assert kwargs["random_seed"] == 2027
 
 
 def test_check_model_endpoint_returns_probe_result() -> None:

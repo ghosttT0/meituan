@@ -2,6 +2,13 @@ export const PRESET_CASES = [
   {
     id: "rider_station_task",
     label: "案例 1：飞毛腿骑手外呼任务",
+    scenarioOptions: [
+      { key: "main_flow", label: "主流程顺畅", profileId: "cooperative", primaryBranch: "cooperative" },
+      { key: "faq_followup", label: "FAQ追问", profileId: "questioning", primaryBranch: "questioning" },
+      { key: "busy_interrupt", label: "忙碌打断", profileId: "busy", primaryBranch: "busy" },
+      { key: "hesitant_risk", label: "风险犹豫", profileId: "hesitant", primaryBranch: "hesitant" },
+      { key: "exit_scope", label: "退出/超纲", profileId: "rejecting", primaryBranch: "rejecting" },
+    ],
     instructionText: `# Role
 你是美团外卖骑手的站长。
 
@@ -43,6 +50,13 @@ export const PRESET_CASES = [
   {
     id: "course_live_task",
     label: "案例 2：直播线路升级通知",
+    scenarioOptions: [
+      { key: "main_flow", label: "主流程顺畅", profileId: "cooperative", primaryBranch: "cooperative" },
+      { key: "faq_followup", label: "FAQ追问", profileId: "questioning", primaryBranch: "questioning" },
+      { key: "busy_interrupt", label: "忙碌打断", profileId: "busy", primaryBranch: "busy" },
+      { key: "hesitant_risk", label: "费用犹豫", profileId: "hesitant", primaryBranch: "hesitant" },
+      { key: "exit_scope", label: "超纲/退出", profileId: "rejecting", primaryBranch: "rejecting" },
+    ],
     instructionText: `# Role: Customer Support Specialist for Course Publishing Platform
 
 ## Task: 告知机构客户，课程发布页面将新增"标准直播"和"低延迟直播"两个独立选项。当需要实时互动时，鼓励选择低延迟直播。
@@ -137,10 +151,12 @@ export const PRESET_CASES = [
 
 export function createInitialState() {
   const first = PRESET_CASES[0];
+  const firstScenario = first.scenarioOptions?.[0];
   return {
     mode: "preset",
-    runMode: "evaluation",
-    rightPanelMode: "results",
+    runMode: "simulation",
+    evaluationMode: "dual_arbitration",
+    rightPanelMode: "conversation",
     activePresetId: first.id,
     instructionText: first.instructionText,
     conversationText: first.conversationText,
@@ -150,8 +166,11 @@ export function createInitialState() {
     simulationConfig: {
       adapterType: "http",
       endpoint: "",
-      profileId: "cooperative",
-      primaryBranch: "cooperative",
+      profileId: firstScenario?.profileId ?? "cooperative",
+      primaryBranch: firstScenario?.primaryBranch ?? "cooperative",
+      scenarioKey: firstScenario?.key ?? "main_flow",
+      batchRuns: 1,
+      randomSeed: 2026,
       maxTurns: 6,
     },
     modelConfig: {
@@ -173,13 +192,44 @@ export function applyPreset(state, presetId) {
   if (!preset) {
     return state;
   }
+  const firstScenario = preset.scenarioOptions?.[0];
   return {
     ...state,
     mode: "preset",
     activePresetId: preset.id,
     instructionText: preset.instructionText,
     conversationText: preset.conversationText,
+    simulationConfig: {
+      ...state.simulationConfig,
+      scenarioKey: firstScenario?.key ?? "main_flow",
+      profileId: firstScenario?.profileId ?? state.simulationConfig.profileId,
+      primaryBranch: firstScenario?.primaryBranch ?? state.simulationConfig.primaryBranch,
+    },
     errorMessage: "",
+  };
+}
+
+export function getPresetById(presetId) {
+  return PRESET_CASES.find((item) => item.id === presetId) ?? null;
+}
+
+export function applyScenarioToState(state, scenarioKey) {
+  const preset = getPresetById(state.activePresetId);
+  const selectedScenario = preset?.scenarioOptions?.find((item) => item.key === scenarioKey);
+  if (!selectedScenario) {
+    return state;
+  }
+  const keepRandomProfile = state.simulationConfig.profileId === "random";
+  return {
+    ...state,
+    simulationConfig: {
+      ...state.simulationConfig,
+      scenarioKey: selectedScenario.key,
+      profileId: keepRandomProfile
+        ? "random"
+        : (selectedScenario.profileId ?? state.simulationConfig.profileId),
+      primaryBranch: selectedScenario.primaryBranch ?? state.simulationConfig.primaryBranch,
+    },
   };
 }
 
@@ -194,8 +244,8 @@ export function switchMode(state, mode) {
 export function switchRunMode(state, runMode) {
   return {
     ...state,
-    runMode,
-    rightPanelMode: runMode === "simulation" ? "conversation" : "results",
+    runMode: "simulation",
+    rightPanelMode: "conversation",
     errorMessage: "",
   };
 }

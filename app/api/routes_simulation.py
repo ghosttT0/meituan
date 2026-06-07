@@ -18,10 +18,14 @@ class AdapterConfig(BaseModel):
 class SimulationConfig(BaseModel):
     profile_id: str = "cooperative"
     primary_branch: str = "cooperative"
+    scenario_key: str | None = None
+    batch_runs: int = 1
+    random_seed: int | None = None
     max_turns: int = 8
 
 
 class SimulationRequest(BaseModel):
+    evaluation_mode: str = "dual_arbitration"
     spec: EvalSpec
     task_instruction_text: str = ""
     adapter: AdapterConfig = Field(default_factory=AdapterConfig)
@@ -53,6 +57,10 @@ async def run_simulation(payload: SimulationRequest) -> dict:
             primary_branch=payload.simulation.primary_branch,
             max_turns=payload.simulation.max_turns,
             task_instruction_text=payload.task_instruction_text,
+            scenario_key=payload.simulation.scenario_key,
+            batch_runs=payload.simulation.batch_runs,
+            random_seed=payload.simulation.random_seed,
+            evaluation_mode=payload.evaluation_mode,
         )
         return result.model_dump()
 
@@ -68,6 +76,10 @@ async def run_simulation(payload: SimulationRequest) -> dict:
             protocol_mode=payload.adapter.protocol_mode,
             max_turns=payload.simulation.max_turns,
             task_instruction_text=payload.task_instruction_text,
+            scenario_key=payload.simulation.scenario_key,
+            batch_runs=payload.simulation.batch_runs,
+            random_seed=payload.simulation.random_seed,
+            evaluation_mode=payload.evaluation_mode,
         )
         return result.model_dump()
 

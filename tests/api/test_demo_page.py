@@ -51,7 +51,7 @@ def test_demo_styles_include_responsive_dashboard_rules() -> None:
     css = client.get("/demo/assets/demo.css").text
 
     assert ".demo-shell" in css
-    assert "grid-template-columns: 400px minmax(0, 1fr);" in css
+    assert "grid-template-columns: 380px minmax(0, 1fr);" in css
     assert "@media (max-width: 1100px)" in css
     assert "--primary: #38bdf8;" in css
 

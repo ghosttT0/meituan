@@ -25,6 +25,7 @@ export function buildCompilePayload({ instructionText }) {
 
 export function buildEvaluationPayload(spec, state) {
   return {
+    evaluation_mode: state.evaluationMode ?? "dual_arbitration",
     spec,
     conversation: {
       conversation_id: "demo_conversation",
@@ -37,6 +38,7 @@ export function buildEvaluationPayload(spec, state) {
 export function buildSimulationPayload(spec, state, simulationConfig) {
   const endpoint = simulationConfig.endpoint || state.modelConfig?.apiUrl || null;
   return {
+    evaluation_mode: state.evaluationMode ?? "dual_arbitration",
     spec,
     task_instruction_text: state.instructionText,
     adapter: {
@@ -50,6 +52,9 @@ export function buildSimulationPayload(spec, state, simulationConfig) {
     simulation: {
       profile_id: simulationConfig.profileId,
       primary_branch: simulationConfig.primaryBranch,
+      scenario_key: simulationConfig.scenarioKey ?? null,
+      batch_runs: Number(simulationConfig.batchRuns ?? 1),
+      random_seed: simulationConfig.randomSeed ?? null,
       max_turns: Number(simulationConfig.maxTurns),
     },
   };

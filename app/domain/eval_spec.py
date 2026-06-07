@@ -57,6 +57,7 @@ class EvalSpec(BaseModel):
     instruction_id: str
     version: str
     task_goal: str
+    task_type: str = "general"  # general | outbound_sign | survey | faq_service
     role_definition: str = ""
     opening_requirements: list[str] = Field(default_factory=list)
     flow_steps: list[FlowStepSpec] = Field(default_factory=list)

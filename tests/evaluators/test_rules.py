@@ -72,3 +72,28 @@ def test_aggregator_zeroes_score_on_hard_fail() -> None:
 
     assert aggregate["hard_fail"] is True
     assert aggregate["overall_score"] == 0.0
+
+
+def test_aggregator_respects_rule_weights() -> None:
+    aggregate = Aggregator().combine(
+        hard_results=[
+            RequiredStepRule().evaluate(build_spec(), []).model_copy(update={"weight": 1.0}),
+            RequiredSlotRule().evaluate(
+                build_spec(),
+                [
+                    FactEvent(
+                        event_id="evt_1",
+                        event_type="slot_fill",
+                        turn_id=3,
+                        slot_name="delivery_time",
+                        slot_value="明天下午",
+                    )
+                ],
+            ).model_copy(update={"weight": 3.0}),
+        ],
+        judge_results=[],
+        parse_warnings=[],
+    )
+
+    assert aggregate["hard_fail"] is False
+    assert aggregate["hard_score"] == 75.0

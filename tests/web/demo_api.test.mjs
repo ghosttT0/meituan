@@ -32,12 +32,14 @@ test("buildEvaluationPayload includes parsed turns", () => {
   const payload = demoApi.buildEvaluationPayload(
     { spec_id: "spec_demo" },
     {
+      evaluationMode: "dual_arbitration",
       instructionText: "请确认收货时间",
       conversationText: "agent: 您好\nuser: 今天下午可以",
     },
   );
 
   assert.equal(payload.spec.spec_id, "spec_demo");
+  assert.equal(payload.evaluation_mode, "dual_arbitration");
   assert.equal(payload.conversation.turns[1].speaker, "user");
   assert.equal(payload.conversation.turns[1].text, "今天下午可以");
 });
@@ -59,12 +61,14 @@ test("runEvaluationFlow calls compile then evaluation endpoints", async () => {
   };
 
   const result = await demoApi.runEvaluationFlow(fakeFetch, {
+    evaluationMode: "single",
     instructionText: "请确认收货时间",
     conversationText: "agent: 您好\nuser: 明天下午可以",
   });
 
   assert.equal(calls[0].url, "/specs/compile");
   assert.equal(calls[1].url, "/evaluations/run");
+  assert.equal(calls[1].body.evaluation_mode, "single");
   assert.equal(result.run_id, "run_1");
 });
 
@@ -92,6 +96,7 @@ test("runSimulationFlow calls compile then simulation endpoint", async () => {
   const result = await demoApi.runSimulationFlow(
     fakeFetch,
     {
+      evaluationMode: "dual",
       instructionText: "请确认收货时间",
       conversationText: "agent: 您好\nuser: 明天下午可以",
       modelConfig: {
@@ -105,8 +110,11 @@ test("runSimulationFlow calls compile then simulation endpoint", async () => {
     {
       adapterType: "http",
       endpoint: "",
+      scenarioKey: "faq_followup",
       profileId: "questioning",
       primaryBranch: "questioning",
+      batchRuns: 3,
+      randomSeed: 2026,
       maxTurns: 4,
     },
   );
@@ -119,7 +127,11 @@ test("runSimulationFlow calls compile then simulation endpoint", async () => {
   assert.equal(calls[1].body.adapter.model, "gpt-4o-mini");
   assert.equal(calls[1].body.adapter.auth_type, "bearer");
   assert.equal(calls[1].body.adapter.protocol_mode, "auto");
+  assert.equal(calls[1].body.evaluation_mode, "dual");
+  assert.equal(calls[1].body.simulation.scenario_key, "faq_followup");
   assert.equal(calls[1].body.simulation.profile_id, "questioning");
+  assert.equal(calls[1].body.simulation.batch_runs, 3);
+  assert.equal(calls[1].body.simulation.random_seed, 2026);
   assert.equal(calls[1].body.task_instruction_text, "请确认收货时间");
   assert.equal(result.simulation_id, "sim_1");
 });

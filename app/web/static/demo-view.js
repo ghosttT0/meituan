@@ -7,17 +7,26 @@ import {
 import {
   PRESET_CASES,
   applyPreset,
+  applyScenarioToState,
   createInitialState,
+  getPresetById,
   switchMode,
   switchRunMode,
 } from "./demo-data.js";
 
-export { PRESET_CASES, applyPreset, createInitialState, switchMode, switchRunMode };
+export { PRESET_CASES, applyPreset, applyScenarioToState, createInitialState, getPresetById, switchMode, switchRunMode };
 
 const RULE_LABELS = {
   required_steps: "必做步骤",
   required_slots: "必填信息",
   forbidden_actions: "禁止项",
+};
+
+const SCENARIO_RULE_LABELS = {
+  scenario_faq_grounding: "FAQ知识点命中",
+  scenario_busy_focus: "忙碌场景聚焦",
+  scenario_scope_fallback: "超纲场景兜底",
+  scenario_hesitant_clarity: "犹豫场景解释清晰度",
 };
 
 const DIMENSION_LABELS = {
@@ -26,6 +35,7 @@ const DIMENSION_LABELS = {
 };
 
 const PROFILE_LABELS = {
+  random: "随机匹配",
   cooperative: "配合型",
   hesitant: "犹豫型",
   rejecting: "拒绝型",
@@ -68,31 +78,128 @@ export function buildScoreCards(result) {
     explanation_quality: "解释充分性",
     task_focus: "任务聚焦度",
   };
-  return Object.entries(result.dimension_scores ?? {}).map(([key, value]) => ({
+  const modeLabels = {
+    single: "单评委",
+    dual: "双评委",
+    dual_arbitration: "双评委 + 仲裁",
+  };
+  const cards = Object.entries(result.dimension_scores ?? {}).map(([key, value]) => ({
     key,
     title: labels[key] ?? key,
     value: Math.round(value * 100),
   }));
+  if (result.evaluation_mode) {
+    cards.push({
+      key: "evaluation_mode",
+      title: "评分模式",
+      value: modeLabels[result.evaluation_mode] ?? result.evaluation_mode,
+    });
+  }
+  if (result.panel_results?.length) {
+    cards.push({
+      key: "panel_count",
+      title: "主评委",
+      value: result.panel_results.length,
+    });
+  }
+  if (typeof result.arbitration_records?.length === "number") {
+    cards.push({
+      key: "arbitration_count",
+      title: "仲裁次数",
+      value: result.arbitration_records.length,
+    });
+  }
+  return cards;
 }
 
 export function buildSimulationCards(result) {
-  return [
+  const cards = [
+    { title: "测试场景", value: result.scenario_label ?? result.scenario_key ?? "-" },
+    { title: "场景重点", value: result.scenario_focus?.[0] ?? "-" },
+    {
+      title: "场景摘要",
+      value: result.scenario_summary ?? result.scenario_diagnosis?.[0] ?? "-",
+      emphasis: true,
+    },
     { title: "模拟画像", value: PROFILE_LABELS[result.profile_id] ?? result.profile_id ?? "-" },
     { title: "用户生成", value: result.generation_mode === "ai" ? "AI生成" : "模板兜底" },
     { title: "助手来源", value: result.adapter_mode === "http" ? "真实模型接口" : "Mock演示" },
     { title: "结束原因", value: result.termination_reason ?? "-" },
     { title: "状态步数", value: String((result.state_trace ?? []).length) },
   ];
+  if (result.batch_mode) {
+    cards.push({ title: "批量运行", value: `${result.batch_count ?? 1} 次` });
+    cards.push({ title: "随机种子", value: String(result.random_seed ?? "-") });
+  }
+  return cards;
 }
 
 export function buildAccordionSections(result) {
+  const roleLabels = {
+    task_alignment: "任务对齐",
+    experience_risk: "体验与风险",
+    arbitrator: "仲裁评委",
+    consensus: "合议结果",
+  };
+  const allRules = result.rule_results ?? [];
+  const scenarioRuleResults = allRules.filter((item) => item.rule_id?.startsWith("scenario_"));
+  const normalRuleResults = allRules.filter((item) => !item.rule_id?.startsWith("scenario_"));
+  const panelJudgeSections = (result.panel_results ?? []).map((panel) => {
+    const dimensionLines = (panel.dimension_results ?? []).map((item) => {
+      const label = DIMENSION_LABELS[item.dimension_id] ?? item.dimension_id;
+      return `[${panel.judge_id}] ${label}: ${Math.round((item.score ?? 0) * 100)} 分 / ${item.reason ?? "-"}`;
+    });
+    const scenarioLines = (panel.scenario_rule_results ?? []).map((item) => {
+      const label = SCENARIO_RULE_LABELS[item.rule_id] ?? item.rule_id;
+      return `[${panel.judge_id}] ${label}: ${item.passed ? "通过" : "未通过"} / ${item.reason ?? "-"}`;
+    });
+    return {
+      title: `评委 ${panel.judge_id}`,
+      body: [
+        `角色：${roleLabels[panel.judge_role] ?? panel.judge_role ?? "-"}`,
+        ...dimensionLines,
+        ...scenarioLines,
+      ].join("<br />"),
+    };
+  });
+  const arbitrationSections = (result.arbitration_records ?? []).map((item, index) => ({
+    title: `仲裁记录 ${index + 1}`,
+    body: [
+      `争议对象：${item.target_type ?? "-"}/${item.target_id ?? "-"}`,
+      `仲裁人：${item.resolved_by ?? "-"}`,
+      `分歧差值：${item.score_gap ?? 0}`,
+      `原因：${item.reason ?? "-"}`,
+    ].join("<br />"),
+  }));
   const simulation = result.state_trace
     ? [
+        ...(result.scenario_label || result.user_goal
+          ? [
+              { title: "测试场景", body: result.scenario_label ?? result.scenario_key ?? "-" },
+              { title: "用户目标", body: result.user_goal ?? "-" },
+              ...(result.scenario_focus?.length
+                ? [{ title: "场景重点", body: result.scenario_focus.join("<br />") }]
+                : []),
+              ...(result.scenario_diagnosis?.length
+                ? [{ title: "场景诊断", body: result.scenario_diagnosis.join("<br />") }]
+                : []),
+              ...(result.batch_mode
+                ? [
+                    { title: "批量运行", body: `本次共运行 ${result.batch_count ?? 1} 次` },
+                    { title: "画像分布", body: JSON.stringify(result.profile_distribution ?? {}, null, 2) },
+                    { title: "随机种子", body: String(result.random_seed ?? "-") },
+                  ]
+                : []),
+            ]
+          : []),
         { title: "状态轨迹", body: (result.state_trace ?? []).join(" → ") },
         {
           title: "模拟对话",
-          body: (result.turns ?? []).map((turn) => `${turn.speaker}: ${turn.text}`).join("\n"),
+          body: (result.turns ?? []).map((turn) => `${turn.speaker}: ${turn.text}`).join("<br />"),
         },
+        ...(result.debug_logs?.length
+          ? [{ title: "模拟日志", body: result.debug_logs.join("<br />") }]
+          : []),
       ]
     : [];
 
@@ -101,14 +208,22 @@ export function buildAccordionSections(result) {
       title: item.linked_decision,
       body: item.quote,
     })),
-    rules: (result.rule_results ?? []).map((item) => ({
+    rules: normalRuleResults.map((item) => ({
       title: RULE_LABELS[item.rule_id] ?? item.rule_id,
       body: `${item.passed ? "通过" : "未通过"}：${item.reason}`,
     })),
-    judge: (result.judge_results ?? []).map((item) => ({
-      title: DIMENSION_LABELS[item.dimension_id] ?? item.dimension_id,
-      body: `${Math.round(item.score * 100)} 分：${item.reason}`,
+    scenarioRules: scenarioRuleResults.map((item) => ({
+      title: SCENARIO_RULE_LABELS[item.rule_id] ?? item.rule_id,
+      body: `${item.passed ? "通过" : "未通过"}：${item.reason}`,
     })),
+    judge: [
+      ...(result.judge_results ?? []).map((item) => ({
+        title: DIMENSION_LABELS[item.dimension_id] ?? item.dimension_id,
+        body: `${Math.round(item.score * 100)} 分：${item.reason}`,
+      })),
+      ...panelJudgeSections,
+      ...arbitrationSections,
+    ],
     simulation,
     rawJson: JSON.stringify(
       {
@@ -116,6 +231,8 @@ export function buildAccordionSections(result) {
         spec_id: result.spec_id,
         confidence: result.confidence,
         simulation_id: result.simulation_id,
+        panel_count: (result.panel_results ?? []).length,
+        arbitration_count: (result.arbitration_records ?? []).length,
       },
       null,
       2,
@@ -181,17 +298,13 @@ export function buildInputPanelHtml(state) {
       </button>
     `,
   ).join("");
+  const activePreset = getPresetById(state.activePresetId);
+  const scenarioOptions = activePreset?.scenarioOptions ?? [];
 
-  const simulationControls =
-    state.runMode === "simulation"
-      ? `
+  const simulationControls = `
       <section class="panel simulation-panel">
         <div class="section-header">
           <h2>模拟配置</h2>
-        </div>
-        <div class="mode-toggle">
-          <button id="run-mode-evaluation" type="button">评估模式</button>
-          <button id="run-mode-simulation" type="button" data-active="true">模拟模式</button>
         </div>
         <label class="field-label" for="simulation-adapter-select">被测模型来源</label>
         <select id="simulation-adapter-select" class="text-input">
@@ -202,10 +315,24 @@ export function buildInputPanelHtml(state) {
         <input id="simulation-endpoint-input" class="text-input" type="text" value="${state.simulationConfig.endpoint ?? ""}" placeholder="http://你的模型接口地址" />
         <label class="field-label" for="simulation-profile-select">用户画像</label>
         <select id="simulation-profile-select" class="text-input">
-          ${["cooperative", "hesitant", "rejecting", "busy", "interrupting", "questioning"]
+          ${["random", "cooperative", "hesitant", "rejecting", "busy", "interrupting", "questioning"]
             .map(
               (item) =>
                 `<option value="${item}"${item === state.simulationConfig.profileId ? " selected" : ""}>${PROFILE_LABELS[item]}</option>`,
+            )
+            .join("")}
+        </select>
+        ${
+          state.simulationConfig.profileId === "random"
+            ? `<p class="dialogue-note profile-random-note">当前已启用随机匹配：每次运行会在 6 类用户画像中随机抽取 1 类，但主分支仍按测试场景约束。</p>`
+            : ""
+        }
+        <label class="field-label" for="simulation-scenario-select">测试场景</label>
+        <select id="simulation-scenario-select" class="text-input">
+          ${scenarioOptions
+            .map(
+              (item) =>
+                `<option value="${item.key}"${item.key === state.simulationConfig.scenarioKey ? " selected" : ""}>${item.label}</option>`,
             )
             .join("")}
         </select>
@@ -218,19 +345,12 @@ export function buildInputPanelHtml(state) {
             )
             .join("")}
         </select>
+        <label class="field-label" for="simulation-batch-runs">运行次数</label>
+        <input id="simulation-batch-runs" class="text-input" type="number" value="${state.simulationConfig.batchRuns ?? 1}" min="1" max="10" />
+        <label class="field-label" for="simulation-random-seed">随机种子</label>
+        <input id="simulation-random-seed" class="text-input" type="number" value="${state.simulationConfig.randomSeed ?? 2026}" min="1" />
         <label class="field-label" for="simulation-max-turns">最大轮次</label>
         <input id="simulation-max-turns" class="text-input" type="number" value="${state.simulationConfig.maxTurns}" min="2" max="12" />
-      </section>
-    `
-      : `
-      <section class="panel simulation-panel">
-        <div class="section-header">
-          <h2>运行模式</h2>
-        </div>
-        <div class="mode-toggle">
-          <button id="run-mode-evaluation" type="button" data-active="true">评估模式</button>
-          <button id="run-mode-simulation" type="button">模拟模式</button>
-        </div>
       </section>
     `;
 
@@ -243,16 +363,17 @@ export function buildInputPanelHtml(state) {
         <button id="mode-preset" type="button"${state.mode === "preset" ? ' data-active="true"' : ""}>预置案例</button>
         <button id="mode-manual" type="button"${state.mode === "manual" ? ' data-active="true"' : ""}>手动试跑</button>
       </div>
-      <label class="field-label" for="instruction-input">${state.runMode === "simulation" ? "系统提示词（任务指令）" : "任务指令"}</label>
+      <label class="field-label" for="evaluation-mode-select">评分机制</label>
+      <select id="evaluation-mode-select" class="text-input">
+        <option value="single"${state.evaluationMode === "single" ? " selected" : ""}>单评委</option>
+        <option value="dual"${state.evaluationMode === "dual" ? " selected" : ""}>双评委</option>
+        <option value="dual_arbitration"${state.evaluationMode === "dual_arbitration" ? " selected" : ""}>双评委 + 仲裁</option>
+      </select>
+      <label class="field-label" for="instruction-input">系统提示词（任务指令）</label>
       <textarea id="instruction-input" class="text-input">${state.instructionText}</textarea>
-      ${
-        state.runMode === "simulation"
-          ? `<p class="dialogue-note">模拟模式下，对话将由系统自动生成并在右侧以聊天形式展示。</p>`
-          : `<label class="field-label" for="conversation-input">对话转写</label>
-      <textarea id="conversation-input" class="text-input transcript-input">${state.conversationText}</textarea>`
-      }
+      <p class="dialogue-note">当前页面仅保留模拟模式，对话将由系统自动生成并在右侧以聊天形式展示。</p>
       <div class="input-actions">
-        <button id="run-evaluation-button" type="button">${state.runMode === "simulation" ? "运行模拟" : "运行评估"}</button>
+        <button id="run-evaluation-button" type="button">运行模拟</button>
         <button id="reset-demo-button" type="button">重置</button>
       </div>
     </section>
@@ -291,7 +412,9 @@ export function buildSimulationDialogueHtml(turns) {
 
   return `
     <h2 class="dialogue-title">对话回放</h2>
-    <div class="chat-thread">${items}</div>
+    <div class="chat-thread-scroll">
+      <div class="chat-thread">${items}</div>
+    </div>
   `;
 }
 
@@ -331,7 +454,8 @@ function renderResultPanel(documentRef, state) {
       (item) => `<article class="scorecard-item"><p>${item.title}</p><strong>${item.value}</strong></article>`,
     ),
     ...simulationCards.map(
-      (item) => `<article class="scorecard-item simulation-card"><p>${item.title}</p><strong>${item.value}</strong></article>`,
+      (item) =>
+        `<article class="scorecard-item simulation-card${item.emphasis ? " summary-highlight" : ""}"><p>${item.title}</p><strong>${item.value}</strong></article>`,
     ),
   ].join("");
 
@@ -340,6 +464,9 @@ function renderResultPanel(documentRef, state) {
     .map((item) => `<article><strong>${item.title}</strong><p>${item.body}</p></article>`)
     .join("");
   documentRef.getElementById("accordion-rules").innerHTML = sections.rules
+    .map((item) => `<article><strong>${item.title}</strong><p>${item.body}</p></article>`)
+    .join("");
+  documentRef.getElementById("accordion-scenario-rules").innerHTML = sections.scenarioRules
     .map((item) => `<article><strong>${item.title}</strong><p>${item.body}</p></article>`)
     .join("");
   documentRef.getElementById("accordion-judge").innerHTML = [...sections.judge, ...sections.simulation]
@@ -370,18 +497,22 @@ function renderModelConfigModal(documentRef, state) {
 function syncStateFromInputs(documentRef, state) {
   const next = {
     ...state,
+    runMode: "simulation",
+    evaluationMode: documentRef.getElementById("evaluation-mode-select").value,
     instructionText: documentRef.getElementById("instruction-input").value,
-    conversationText:
-      state.runMode === "simulation"
-        ? state.conversationText
-        : documentRef.getElementById("conversation-input").value,
+    conversationText: state.conversationText,
   };
 
   if (next.runMode === "simulation") {
+    const selectedScenarioKey = documentRef.getElementById("simulation-scenario-select").value;
+    let scenarioSynced = applyScenarioToState(next, selectedScenarioKey);
     next.simulationConfig = {
-      ...next.simulationConfig,
+      ...scenarioSynced.simulationConfig,
       profileId: documentRef.getElementById("simulation-profile-select").value,
       primaryBranch: documentRef.getElementById("simulation-branch-select").value,
+      scenarioKey: selectedScenarioKey,
+      batchRuns: Number(documentRef.getElementById("simulation-batch-runs").value),
+      randomSeed: Number(documentRef.getElementById("simulation-random-seed").value),
       maxTurns: Number(documentRef.getElementById("simulation-max-turns").value),
       adapterType: documentRef.getElementById("simulation-adapter-select").value,
       endpoint: documentRef.getElementById("simulation-endpoint-input").value.trim(),
@@ -515,16 +646,6 @@ export function bootstrapDemo(documentRef = document, fetchImpl = fetch, storage
       rerender();
     };
 
-    documentRef.getElementById("run-mode-evaluation").onclick = () => {
-      state = switchRunMode(state, "evaluation");
-      rerender();
-    };
-
-    documentRef.getElementById("run-mode-simulation").onclick = () => {
-      state = switchRunMode(state, "simulation");
-      rerender();
-    };
-
     documentRef.getElementById("view-mode-results").onclick = () => {
       state = { ...state, rightPanelMode: "results" };
       rerender();
@@ -542,6 +663,14 @@ export function bootstrapDemo(documentRef = document, fetchImpl = fetch, storage
       };
     });
 
+    const scenarioSelect = documentRef.getElementById("simulation-scenario-select");
+    if (scenarioSelect) {
+      scenarioSelect.onchange = () => {
+        state = applyScenarioToState(state, scenarioSelect.value);
+        rerender();
+      };
+    }
+
     documentRef.getElementById("reset-demo-button").onclick = () => {
       state = {
         ...createInitialState(),
@@ -557,10 +686,7 @@ export function bootstrapDemo(documentRef = document, fetchImpl = fetch, storage
       documentRef.getElementById("status-banner").textContent =
         state.runMode === "simulation" ? "模拟运行中..." : "评估运行中...";
       try {
-        const result =
-          state.runMode === "simulation"
-            ? await runSimulationFlow(fetchImpl, state, state.simulationConfig)
-            : await runEvaluationFlow(fetchImpl, state);
+        const result = await runSimulationFlow(fetchImpl, state, state.simulationConfig);
         state = {
           ...state,
           status: "success",
