@@ -7,12 +7,14 @@ from app.evaluators.rules.base import Rule
 class RequiredStepRule(Rule):
     def evaluate(self, spec: EvalSpec, events: list[FactEvent]) -> RuleResult:
         required_ids = {step.id for step in spec.required_steps if step.required}
+        id_to_name = {step.id: step.name for step in spec.required_steps}
         observed = {event.event_type for event in events}
         missing = sorted(required_ids - observed)
+        missing_labels = [id_to_name.get(m, m) for m in missing]
         return RuleResult(
             rule_id="required_steps",
             passed=not missing,
             score_delta=1.0 if not missing else 0.0,
             evidence_turn_ids=[event.turn_id for event in events if event.event_type in required_ids],
-            reason="已完成全部必做步骤" if not missing else f"缺少必做步骤：{', '.join(missing)}",
+            reason="已完成全部必做步骤" if not missing else f"缺少必做步骤：{', '.join(missing_labels)}",
         )

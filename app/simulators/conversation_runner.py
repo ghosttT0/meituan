@@ -2,7 +2,7 @@ from uuid import uuid4
 
 from app.domain.conversation import Conversation, Turn
 from app.domain.eval_spec import EvalSpec
-from app.domain.simulation import ConversationState, SimulatedUserReply, SimulationRunResult
+from app.domain.simulation import ConversationState, SimulatedUserReply, SimulationRunResult, UserIntent
 from app.pipeline.evaluation_runner import EvaluationRunner
 from app.simulators.ai_user_simulator import OpenAIUserSimulatorAdapter
 from app.simulators.emotion_engine import EmotionEngine
@@ -11,6 +11,7 @@ from app.simulators.policy_engine import UserPolicyEngine
 from app.simulators.profiles import get_profile
 from app.simulators.prompt_builder import UserPromptBuilder
 from app.simulators.question_pool import TaskQuestionPoolBuilder
+from app.simulators.question_pool_enricher import QuestionPoolEnricher
 from app.simulators.reply_analyzer import RuleBasedReplyAnalyzer
 from app.simulators.response_generator import TemplateFirstResponseGenerator
 from app.simulators.scenario_builder import ScenarioBuilder
@@ -184,7 +185,9 @@ class ConversationRunner:
             random_seed=random_seed,
         )
         profile = get_profile(scenario.profile_id)
-        question_pool = self.question_pool_builder.build(spec)
+        question_pool = QuestionPoolEnricher().enrich(
+            self.question_pool_builder.build(spec), spec
+        )
         state = ConversationState(current_state="init", turn_index=0)
         state_trace = [state.current_state]
         turns: list[dict] = []
@@ -195,7 +198,7 @@ class ConversationRunner:
         emotion_engine = EmotionEngine(profile)
 
         session_config = {
-            "task_instruction_text": task_instruction_text or spec.task_goal,
+            "task_instruction_text": self._resolve_placeholders(task_instruction_text or spec.task_goal),
             **(adapter_config or {}),
         }
         debug_logs.append(
@@ -205,6 +208,11 @@ class ConversationRunner:
         debug_logs.append(f"任务目标：{spec.task_goal}")
         await adapter.start_session(session_config)
 
+        # 外呼场景：模型先说开场白，用户再接话
+        opening = await adapter.send_user_message("[电话接通]")
+        turns.append({"turn_id": 1, "speaker": "agent", "text": opening})
+        debug_logs.append(f"开场白：被测模型 -> {opening}")
+
         for turn_index in range(max_turns):
             suggested_intent = self.policy_engine.next_intent(
                 primary_branch=scenario.primary_branch,
@@ -213,6 +221,7 @@ class ConversationRunner:
                 question_pool=question_pool,
                 recent_questions=recent_questions,
                 profile=profile,
+                emotion=emotion_engine.emotion,
             )
             if suggested_intent.note:
                 debug_logs.append(
@@ -235,16 +244,31 @@ class ConversationRunner:
             )
             if suggested_intent.note:
                 recent_questions.append(suggested_intent.note)
-            ai_reply = self.user_simulator.generate_turn(prompt)
+            try:
+                ai_reply = self.user_simulator.generate_turn(prompt)
+            except Exception as exc:
+                ai_reply = None
+                debug_logs.append(f"第{turn_index + 1}轮：AI 用户模拟失败（{exc}），切换模板兜底")
 
             if ai_reply is None:
                 generation_mode = "template_fallback"
-                debug_logs.append(f"第{turn_index + 1}轮：AI 用户模拟失败，切换模板兜底")
+                fallback_intent = suggested_intent
+                if suggested_intent.action == "answer_slot" and question_pool:
+                    candidate = self.policy_engine._pick_question(
+                        question_pool, recent_questions, profile, ["faq", "step", "objection"]
+                    )
+                    if candidate:
+                        fallback_intent = UserIntent(
+                            action="ask_task_specific_question",
+                            state="questioning",
+                            note=candidate,
+                        )
+                        recent_questions.append(candidate)  # 确保不重复选中
                 ai_reply = SimulatedUserReply(
-                    state=suggested_intent.state,
-                    intent=suggested_intent.action,
-                    reply=self.response_generator.render(suggested_intent, profile, emotion=emotion_engine.emotion),
-                    should_end=suggested_intent.state in {"busy", "rejecting"},
+                    state=fallback_intent.state,
+                    intent=fallback_intent.action,
+                    reply=self.response_generator.render(fallback_intent, profile, emotion=emotion_engine.emotion),
+                    should_end=fallback_intent.state in {"busy", "rejecting"},
                 )
 
             user_text = ai_reply.reply
@@ -368,6 +392,16 @@ class ConversationRunner:
         if not diagnosis:
             diagnosis.append("当前场景暂无额外诊断。")
         return diagnosis
+
+    def _resolve_placeholders(self, text: str) -> str:
+        """替换任务指令里的占位符，如 ${rider_name} → 随机中文姓名。"""
+        import random
+        if "${rider_name}" not in text:
+            return text
+        surnames = ["王", "李", "张", "刘", "陈", "杨", "赵", "黄", "周", "吴"]
+        given = ["伟", "芳", "磊", "静", "强", "敏", "勇", "娜", "涛", "秀英"]
+        name = random.choice(surnames) + random.choice(given)
+        return text.replace("${rider_name}", name)
 
     def _build_scenario_summary(
         self,

@@ -1,4 +1,4 @@
-from app.domain.eval_spec import ScoringPolicy
+from app.domain.eval_spec import ScoringPolicy, SoftDimension
 from app.domain.evaluation_result import (
     ArbitrationRecord,
     DimensionScore,
@@ -26,6 +26,7 @@ class Aggregator:
         soft_eval_skipped: bool = False,
         arbitration_records: list[ArbitrationRecord] | None = None,
         scoring_policy: ScoringPolicy | None = None,
+        soft_dimensions: list[SoftDimension] | None = None,
     ) -> dict:
         policy = scoring_policy or ScoringPolicy()
         hard_fail = any(result.severity == "fatal" and not result.passed for result in hard_results)
@@ -34,11 +35,17 @@ class Aggregator:
             sum(result.score_delta * max(result.weight, 0.0) for result in hard_results)
             / max(total_hard_weight, 1.0)
         )
-        soft_score = (
-            100.0 * (sum(result.score for result in judge_results) / max(len(judge_results), 1))
-            if judge_results
-            else 0.0
-        )
+
+        # soft_score：按 SoftDimension.weight 加权平均，降级时等权平均
+        if judge_results:
+            weight_map = {d.id: d.weight for d in soft_dimensions} if soft_dimensions else {}
+            total_w = sum(weight_map.get(r.dimension_id, 1.0) for r in judge_results)
+            soft_score = 100.0 * sum(
+                r.score * weight_map.get(r.dimension_id, 1.0) for r in judge_results
+            ) / max(total_w, 1e-9)
+        else:
+            soft_score = 0.0
+
         if hard_fail and policy.hard_fail_zero_out:
             overall_score = 0.0
         else:
@@ -110,12 +117,26 @@ class Aggregator:
             )
 
         forbidden_passed = next((r.passed for r in hard_results if r.rule_id == "forbidden_actions"), True)
-        # 触发违规承诺 → 0；有其他硬规则失败 → 50；全通过 → 100
-        any_hard_fail = any(not r.passed for r in hard_results)
-        robustness_score = 100.0 if not any_hard_fail else (0.0 if not forbidden_passed else 50.0)
+        # 鲁棒性：衡量模型在压力下的稳健性，独立于任务完成度
+        # - 违规承诺（fatal）→ 直接归零
+        # - 场景规则失败（模型应对异常场景时失败）→ 各扣 20 分
+        # - 流程/槽位失败不影响鲁棒性（属于任务完成度范畴）
+        scenario_fails = sum(
+            1 for r in hard_results
+            if not r.passed and r.rule_id.startswith("scenario_")
+        )
+        if not forbidden_passed:
+            robustness_score = 0.0
+            robustness_reason = "检测到违规承诺，鲁棒性归零"
+        elif scenario_fails > 0:
+            robustness_score = max(0.0, 100.0 - scenario_fails * 20.0)
+            robustness_reason = f"存在 {scenario_fails} 个场景规则失败，稳健性不足"
+        else:
+            robustness_score = 100.0
+            robustness_reason = "对话中未出现异常处理问题"
         robustness_sub = {
             "违规承诺规避": 100.0 if forbidden_passed else 0.0,
-            "流程完整性": 100.0 if not any_hard_fail else 50.0,
+            "场景应对能力": max(0.0, 100.0 - scenario_fails * 20.0),
         }
         dimensions.append(
             DimensionScore(
@@ -125,10 +146,12 @@ class Aggregator:
                 weight=w_rob,
                 max_score=100.0,
                 sub_scores=robustness_sub,
-                reason="对话中未出现明显异常" if robustness_score == 100.0 else (
-                    "检测到违规承诺，鲁棒性为 0" if not forbidden_passed else "存在流程硬规则失败"
-                ),
-                evidence_turn_ids=[tid for r in hard_results if not r.passed for tid in r.evidence_turn_ids],
+                reason=robustness_reason,
+                evidence_turn_ids=[
+                    tid for r in hard_results
+                    if not r.passed and (not forbidden_passed or r.rule_id.startswith("scenario_"))
+                    for tid in r.evidence_turn_ids
+                ],
             )
         )
 
@@ -171,10 +194,12 @@ class Aggregator:
         weaknesses: list[str] = []
         for result in hard_results:
             if not result.passed:
-                weaknesses.append(f"[失败] {result.reason}")
+                prefix = "[待复核]" if result.status == "needs_review" else "[失败]"
+                weaknesses.append(f"{prefix} {result.reason}")
         for result in judge_results:
-            if result.score < 0.7:
-                weaknesses.append(f"[偏低] {result.dimension_id} 得分偏低：{result.reason}")
+            if result.status != "ok" or result.score < 0.7:
+                prefix = "[待复核]" if result.status != "ok" else "[偏低]"
+                weaknesses.append(f"{prefix} {result.dimension_id} 得分偏低：{result.reason}")
 
         suggestions: list[str] = []
         for result in hard_results:

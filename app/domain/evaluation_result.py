@@ -33,6 +33,7 @@ class JudgePanelResult(BaseModel):
     judge_role: str
     dimension_results: list[JudgeResult] = Field(default_factory=list)
     scenario_rule_results: list[RuleResult] = Field(default_factory=list)
+    step_results: list["StepJudgeResult"] = Field(default_factory=list)
 
 
 class ArbitrationRecord(BaseModel):
@@ -49,6 +50,28 @@ class PanelEvaluation(BaseModel):
     arbitration_records: list[ArbitrationRecord] = Field(default_factory=list)
     final_judge_results: list[JudgeResult] = Field(default_factory=list)
     final_rule_results: list[RuleResult] = Field(default_factory=list)
+    final_step_results: list["StepJudgeResult"] = Field(default_factory=list)
+
+
+class StepCandidate(BaseModel):
+    step_id: str
+    step_name: str
+    candidate_turn_ids: list[int] = Field(default_factory=list)
+    candidate_reason: str = ""
+    status: str = "candidate"
+
+
+class StepJudgeResult(BaseModel):
+    step_id: str
+    step_name: str
+    completed: bool = False
+    confidence: float = 0.0
+    reason: str = ""
+    evidence_turn_ids: list[int] = Field(default_factory=list)
+    status: str = "ok"
+    judge_id: str = ""
+    judge_role: str = "general"
+    is_arbitration: bool = False
 
 
 class EvidenceItem(BaseModel):
@@ -100,6 +123,7 @@ class EvaluationResult(BaseModel):
     judge_results: list[JudgeResult] = Field(default_factory=list)
     panel_results: list[JudgePanelResult] = Field(default_factory=list)
     arbitration_records: list[ArbitrationRecord] = Field(default_factory=list)
+    step_results: list[StepJudgeResult] = Field(default_factory=list)
     evidence_items: list[EvidenceItem] = Field(default_factory=list)
     summary: str = ""
     detailed_dimensions: list[DimensionScore] = Field(default_factory=list)

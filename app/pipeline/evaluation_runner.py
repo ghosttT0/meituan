@@ -6,10 +6,10 @@ from app.domain.eval_spec import EvalSpec
 from app.domain.evaluation_result import EvaluationResult, PanelEvaluation, RuleResult
 from app.evaluators.judge.llm_adapter import FakeLLMAdapter, OpenAILLMAdapter
 from app.evaluators.judge.panel_judge import PanelJudge, SUBJECTIVE_SCENARIO_RULE_IDS
-from app.evaluators.rules.flow_rules import RequiredStepRule
 from app.evaluators.rules.forbidden_rules import ForbiddenActionRule
 from app.evaluators.rules.scenario_rules import ScenarioRuleEngine
 from app.evaluators.rules.slot_rules import RequiredSlotRule
+from app.evaluators.rules.step_candidates import RequiredStepCandidateCollector
 from app.pipeline.aggregator import Aggregator
 from app.pipeline.dialogue_parser import DialogueParser
 from app.pipeline.fact_extractor import FactExtractor
@@ -28,9 +28,9 @@ class EvaluationRunner:
     ) -> EvaluationResult:
         parsed = DialogueParser().parse(conversation)
         events = FactExtractor().extract(parsed)
+        step_candidates = RequiredStepCandidateCollector().collect(spec, parsed)
 
         base_rules = [
-            RequiredStepRule().evaluate(spec, events),
             RequiredSlotRule().evaluate(spec, events),
             ForbiddenActionRule().evaluate(spec, events),
         ]
@@ -44,9 +44,13 @@ class EvaluationRunner:
 
         self._decorate_rule_suggestions(base_rules + scenario_rules)
 
-        panel_evaluation = self._run_panel(spec, parsed, subjective_scenario_rules, evaluation_mode)
+        panel_evaluation = self._run_panel(spec, parsed, subjective_scenario_rules, step_candidates, evaluation_mode)
         judge_results = panel_evaluation.final_judge_results
-        final_rules = [*base_rules, *objective_scenario_rules]
+        final_rules = [
+            self._build_required_steps_rule(spec, panel_evaluation.final_step_results, step_candidates),
+            *base_rules,
+            *objective_scenario_rules,
+        ]
         final_rules.extend(
             panel_evaluation.final_rule_results if panel_evaluation.final_rule_results else subjective_scenario_rules
         )
@@ -59,6 +63,7 @@ class EvaluationRunner:
             soft_eval_skipped=not bool(judge_results),
             arbitration_records=panel_evaluation.arbitration_records,
             scoring_policy=spec.scoring_policy,
+            soft_dimensions=spec.soft_dimensions,
         )
         needs_review = (
             aggregate["needs_review"]
@@ -97,6 +102,8 @@ class EvaluationRunner:
             evidence_items.extend(build_evidence_items(parsed, result.evidence_turn_ids, result.rule_id, source_type="rule"))
         for result in judge_results:
             evidence_items.extend(build_evidence_items(parsed, result.evidence_turn_ids, result.dimension_id, source_type="judge"))
+        for result in panel_evaluation.final_step_results:
+            evidence_items.extend(build_evidence_items(parsed, result.evidence_turn_ids, result.step_id, source_type="step"))
 
         evaluation = EvaluationResult(
             run_id=f"run_{uuid4().hex[:8]}",
@@ -113,6 +120,7 @@ class EvaluationRunner:
             judge_results=judge_results,
             panel_results=panel_evaluation.panel_results,
             arbitration_records=panel_evaluation.arbitration_records,
+            step_results=panel_evaluation.final_step_results,
             evidence_items=evidence_items,
             detailed_dimensions=detailed_dimensions,
             evaluation_summary=evaluation_summary,
@@ -124,9 +132,10 @@ class EvaluationRunner:
         spec: EvalSpec,
         conversation: Conversation,
         subjective_scenario_rules: list[RuleResult],
+        step_candidates,
         evaluation_mode: str,
     ) -> PanelEvaluation:
-        if not spec.soft_dimensions and not subjective_scenario_rules:
+        if not spec.soft_dimensions and not subjective_scenario_rules and not step_candidates:
             return PanelEvaluation()
 
         primary_judge_count, arbitration_enabled = self._resolve_panel_mode(evaluation_mode)
@@ -135,6 +144,7 @@ class EvaluationRunner:
             spec,
             conversation,
             subjective_scenario_rules,
+            step_candidates=step_candidates,
             primary_judge_count=primary_judge_count,
             arbitration_enabled=arbitration_enabled,
         )
@@ -146,6 +156,85 @@ class EvaluationRunner:
         if normalized == "dual":
             return 2, False
         return 2, True
+
+    def _build_required_steps_rule(self, spec: EvalSpec, step_results, step_candidates) -> RuleResult:
+        required_steps = [step for step in spec.required_steps if step.required]
+        if not required_steps:
+            return RuleResult(
+                rule_id="required_steps",
+                passed=True,
+                score_delta=1.0,
+                reason="未配置必做步骤",
+            )
+
+        by_id = {item.step_id: item for item in step_results}
+        candidate_map = {item.step_id: item for item in step_candidates}
+        evidence_turn_ids = sorted({tid for item in step_results for tid in item.evidence_turn_ids})
+        avg_conf = round(sum(item.confidence for item in step_results) / max(len(step_results), 1), 2) if step_results else 0.0
+
+        completed_steps = []
+        review_steps = []
+        missing_hard = []
+        for step in required_steps:
+            step_result = by_id.get(step.id)
+            candidate = candidate_map.get(step.id)
+            if step_result and step_result.completed:
+                completed_steps.append(step)
+            elif step_result and step_result.status == "needs_review":
+                review_steps.append(step)
+            elif candidate and candidate.candidate_turn_ids:
+                review_steps.append(step)
+            else:
+                missing_hard.append(step)
+
+        if not review_steps and not missing_hard:
+            return RuleResult(
+                rule_id="required_steps",
+                passed=True,
+                score_delta=1.0,
+                evidence_turn_ids=evidence_turn_ids,
+                reason="已完成全部必做步骤",
+                status="ok",
+                review_source="step_judge",
+                review_confidence=avg_conf,
+            )
+
+        partial_score = round((len(completed_steps) + 0.5 * len(review_steps)) / max(len(required_steps), 1), 2)
+
+        def format_step_issue(step) -> str:
+            step_result = by_id.get(step.id)
+            candidate = candidate_map.get(step.id)
+            if step_result and step_result.reason:
+                return f"{step.name}：{step_result.reason}"
+            if candidate and candidate.candidate_turn_ids:
+                return f"{step.name}：候选证据已召回，待评委复核"
+            return step.name
+
+        if review_steps and not missing_hard:
+            return RuleResult(
+                rule_id="required_steps",
+                passed=False,
+                score_delta=partial_score,
+                evidence_turn_ids=evidence_turn_ids,
+                reason="以下必做步骤待复核：" + "；".join(format_step_issue(step) for step in review_steps),
+                status="needs_review",
+                review_source="step_judge",
+                review_confidence=avg_conf,
+            )
+
+        missing_labels = [format_step_issue(step) for step in missing_hard]
+        missing_labels.extend(format_step_issue(step) for step in review_steps)
+        prefix = "缺少必做步骤：" if missing_hard else "以下必做步骤待复核："
+        return RuleResult(
+            rule_id="required_steps",
+            passed=False,
+            score_delta=partial_score,
+            evidence_turn_ids=evidence_turn_ids,
+            reason=prefix + "；".join(missing_labels),
+            status="needs_review" if review_steps else "ok",
+            review_source="step_judge",
+            review_confidence=avg_conf,
+        )
 
     def _build_adapter(self):
         if os.getenv("PYTEST_CURRENT_TEST"):

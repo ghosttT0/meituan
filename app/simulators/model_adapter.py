@@ -54,19 +54,26 @@ class HttpModelAdapter:
             if task_instruction_text:
                 messages.append({"role": "system", "content": task_instruction_text})
             for item in history:
+                if item.get("text") == "[电话接通]":
+                    continue
                 speaker = item.get("speaker", "")
                 role = "assistant" if speaker in {"assistant", "agent"} else "user"
                 messages.append({"role": role, "content": item.get("text", "")})
+            # 开场白：history 全是 agent 说话时（即第一次触发），补一条空 user 消息触发模型开口
+            if messages and messages[-1]["role"] == "system":
+                messages.append({"role": "user", "content": "（通话已接通）"})
             return {
                 "model": getattr(self, "model", ""),
                 "messages": messages,
             }
+        # reply 协议：同样过滤触发消息
+        filtered_history = [h for h in history if h.get("text") != "[电话接通]"]
         return {
             "session_id": session_id,
             "model": getattr(self, "model", ""),
             "task_instruction": task_instruction_text,
             "system_prompt": task_instruction_text,
-            "history": history,
+            "history": filtered_history,
         }
 
     async def start_session(self, config: dict) -> str:

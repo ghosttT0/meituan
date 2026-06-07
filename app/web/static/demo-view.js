@@ -13,6 +13,14 @@ import {
   switchMode,
   switchRunMode,
 } from "./demo-data.js";
+import {
+  appendEvaluationHistory,
+  buildHistoryPanelHtml,
+  clearEvaluationHistory,
+  createHistoryEntry,
+  loadEvaluationHistory,
+  removeEvaluationHistoryItem,
+} from "./demo-history.js";
 
 export { PRESET_CASES, applyPreset, applyScenarioToState, createInitialState, getPresetById, switchMode, switchRunMode };
 
@@ -71,6 +79,19 @@ export function mergeModelConfigIntoState(state, modelConfig) {
   };
 }
 
+export function getScoreLevel(value) {
+  if (typeof value !== "number") {
+    return "neutral";
+  }
+  if (value >= 80) {
+    return "good";
+  }
+  if (value >= 60) {
+    return "mid";
+  }
+  return "low";
+}
+
 export function buildScoreCards(result) {
   const labels = {
     flow_following: "流程遵循",
@@ -85,12 +106,14 @@ export function buildScoreCards(result) {
   };
   const cards = Object.entries(result.dimension_scores ?? {}).map(([key, value]) => ({
     key,
+    kind: "dimension",
     title: labels[key] ?? key,
     value: Math.round(value * 100),
   }));
   if (result.evaluation_mode) {
     cards.push({
       key: "evaluation_mode",
+      kind: "meta",
       title: "评分模式",
       value: modeLabels[result.evaluation_mode] ?? result.evaluation_mode,
     });
@@ -98,18 +121,251 @@ export function buildScoreCards(result) {
   if (result.panel_results?.length) {
     cards.push({
       key: "panel_count",
+      kind: "meta",
       title: "主评委",
-      value: result.panel_results.length,
+      value: String(result.panel_results.length),
     });
   }
   if (typeof result.arbitration_records?.length === "number") {
     cards.push({
       key: "arbitration_count",
+      kind: "meta",
       title: "仲裁次数",
-      value: result.arbitration_records.length,
+      value: String(result.arbitration_records.length),
     });
   }
   return cards;
+}
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;");
+}
+
+export function buildScorecardHtml(scoreCards, simulationCards = []) {
+  const dimensionCards = scoreCards.filter((item) => item.kind === "dimension");
+  const metaCards = scoreCards.filter((item) => item.kind === "meta");
+  const summaryCard = simulationCards.find((item) => item.emphasis);
+  const simulationDetails = simulationCards.filter((item) => !item.emphasis);
+
+  const sections = [];
+
+  if (dimensionCards.length) {
+    sections.push(`
+      <section class="scorecard-section">
+        <h3 class="scorecard-section-title">维度得分</h3>
+        <div class="scorecard-dimensions">
+          ${dimensionCards
+            .map((item) => {
+              const level = getScoreLevel(item.value);
+              return `<article class="dimension-score" data-level="${level}">
+                <span class="dimension-score__label">${escapeHtml(item.title)}</span>
+                <span class="dimension-score__value">${escapeHtml(item.value)}</span>
+              </article>`;
+            })
+            .join("")}
+        </div>
+      </section>
+    `);
+  }
+
+  if (metaCards.length) {
+    sections.push(`
+      <section class="scorecard-section scorecard-section--meta">
+        <div class="scorecard-meta">
+          ${metaCards
+            .map(
+              (item) =>
+                `<span class="meta-item"><em>${escapeHtml(item.title)}</em>${escapeHtml(item.value)}</span>`,
+            )
+            .join("")}
+        </div>
+      </section>
+    `);
+  }
+
+  if (simulationCards.length) {
+    sections.push(`
+      <section class="scorecard-section">
+        <h3 class="scorecard-section-title">模拟信息</h3>
+        ${
+          summaryCard
+            ? `<p class="simulation-summary"><span class="simulation-summary__label">${escapeHtml(summaryCard.title)}</span>${escapeHtml(summaryCard.value)}</p>`
+            : ""
+        }
+        ${
+          simulationDetails.length
+            ? `<dl class="simulation-details">
+                ${simulationDetails
+                  .map(
+                    (item) =>
+                      `<div class="simulation-detail"><dt>${escapeHtml(item.title)}</dt><dd>${escapeHtml(item.value)}</dd></div>`,
+                  )
+                  .join("")}
+              </dl>`
+            : ""
+        }
+      </section>
+    `);
+  }
+
+  if (!sections.length) {
+    return `<p class="scorecard-empty">运行评测后，维度得分与模拟信息会显示在这里。</p>`;
+  }
+
+  return `<div class="scorecard-board">${sections.join("")}</div>`;
+}
+
+function renderConclusionListSection(title, items, modifier = "") {
+  if (!items?.length) {
+    return "";
+  }
+  return `<section class="conclusion-section ${modifier}">
+    <h4 class="conclusion-section__title">${escapeHtml(title)}</h4>
+    <ul class="conclusion-list">
+      ${items.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}
+    </ul>
+  </section>`;
+}
+
+export function buildConclusionFromText(text) {
+  const lines = String(text ?? "")
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+  if (!lines.length) {
+    return '<p class="conclusion-empty">暂无结论。</p>';
+  }
+
+  const sections = [];
+  let current = null;
+
+  const pushSection = () => {
+    if (!current || !current.items.length) {
+      return;
+    }
+    sections.push(current);
+    current = null;
+  };
+
+  for (const line of lines) {
+    const bulletMatch = line.match(/^[-•]\s*(.+)$/);
+    const labeledBulletMatch = line.match(/^\s*[-•]\s*(.+)$/);
+    const headingMatch = line.match(/^(主要优点|主要问题|改进建议|各维度得分)[:：]?$/);
+    const metricMatch = line.match(/^(.+?)[:：]\s*(.+)$/);
+
+    if (headingMatch) {
+      pushSection();
+      current = { title: headingMatch[1], items: [], type: "list" };
+      continue;
+    }
+
+    if (bulletMatch || labeledBulletMatch) {
+      if (!current) {
+        current = { title: "", items: [], type: "list" };
+      }
+      current.items.push((bulletMatch ?? labeledBulletMatch)[1]);
+      continue;
+    }
+
+    if (metricMatch && !line.startsWith("综合评分")) {
+      sections.push({ title: metricMatch[1], items: [metricMatch[2]], type: "metric" });
+      continue;
+    }
+
+    sections.push({ title: "", items: [line], type: "paragraph" });
+  }
+  pushSection();
+
+  const metrics = sections.filter((item) => item.type === "metric");
+  const lists = sections.filter((item) => item.type === "list");
+  const paragraphs = sections.filter((item) => item.type === "paragraph");
+
+  return `<div class="conclusion-board">
+    ${
+      metrics.length
+        ? `<div class="conclusion-metrics">
+            ${metrics
+              .map(
+                (item) =>
+                  `<div class="conclusion-metric"><span>${escapeHtml(item.title)}</span><strong>${escapeHtml(item.items[0])}</strong></div>`,
+              )
+              .join("")}
+          </div>`
+        : ""
+    }
+    <div class="conclusion-sections">
+      ${lists
+        .map((item) => {
+          const modifier =
+            item.title === "主要优点"
+              ? "conclusion-section--good"
+              : item.title === "主要问题"
+                ? "conclusion-section--warn"
+                : item.title === "改进建议"
+                  ? "conclusion-section--info"
+                  : "";
+          return renderConclusionListSection(item.title || "详情", item.items, modifier);
+        })
+        .join("")}
+      ${paragraphs
+        .map((item) => `<p class="conclusion-paragraph">${escapeHtml(item.items[0])}</p>`)
+        .join("")}
+    </div>
+  </div>`;
+}
+
+export function buildConclusionHtml(result) {
+  const evaluationSummary = result.evaluation_summary ?? result.evaluation?.evaluation_summary;
+  if (evaluationSummary) {
+    const metrics = [
+      { label: "任务完成度", value: `${Math.round((evaluationSummary.task_success_rate ?? 0) * 100)}%` },
+      { label: "对话效率", value: Number(evaluationSummary.efficiency_score ?? 0).toFixed(1) },
+      { label: "用户体验", value: Number(evaluationSummary.experience_score ?? 0).toFixed(1) },
+      { label: "鲁棒性", value: Number(evaluationSummary.robustness_score ?? 0).toFixed(1) },
+    ];
+    return `<div class="conclusion-board">
+      <div class="conclusion-headline">
+        <span class="conclusion-grade">${escapeHtml(evaluationSummary.grade ?? "-")}</span>
+        <span class="conclusion-scoreline">综合 ${Number(evaluationSummary.overall_score ?? result.overall_score ?? 0).toFixed(1)} 分</span>
+      </div>
+      <div class="conclusion-metrics">
+        ${metrics
+          .map(
+            (item) =>
+              `<div class="conclusion-metric"><span>${escapeHtml(item.label)}</span><strong>${escapeHtml(item.value)}</strong></div>`,
+          )
+          .join("")}
+      </div>
+      <div class="conclusion-sections">
+        ${renderConclusionListSection("主要优点", evaluationSummary.key_strengths, "conclusion-section--good")}
+        ${renderConclusionListSection("主要问题", evaluationSummary.key_weaknesses, "conclusion-section--warn")}
+        ${renderConclusionListSection("改进建议", evaluationSummary.improvement_suggestions, "conclusion-section--info")}
+      </div>
+    </div>`;
+  }
+
+  const text = result.summary ?? result.termination_reason ?? "";
+  if (!text || text === "等待运行") {
+    return '<p class="conclusion-empty">运行评测后，总体结论会按维度、优缺点与建议分块展示。</p>';
+  }
+
+  if (result.hard_fail && text.length < 80) {
+    return `<p class="conclusion-alert">${escapeHtml(text)}</p>`;
+  }
+
+  return buildConclusionFromText(text);
+}
+
+export function getDisplayResult(state) {
+  if (state.viewingHistoryId) {
+    const entry = state.history.find((item) => item.id === state.viewingHistoryId);
+    return entry?.result ?? state.lastResult;
+  }
+  return state.lastResult;
 }
 
 export function buildSimulationCards(result) {
@@ -373,8 +629,10 @@ export function buildInputPanelHtml(state) {
       <textarea id="instruction-input" class="text-input">${state.instructionText}</textarea>
       <p class="dialogue-note">当前页面仅保留模拟模式，对话将由系统自动生成并在右侧以聊天形式展示。</p>
       <div class="input-actions">
-        <button id="run-evaluation-button" type="button">运行模拟</button>
-        <button id="reset-demo-button" type="button">重置</button>
+        <button id="run-evaluation-button" type="button"${state.status === "loading" ? " disabled" : ""}>
+          ${state.status === "loading" ? "运行中..." : "运行模拟"}
+        </button>
+        <button id="reset-demo-button" type="button"${state.status === "loading" ? " disabled" : ""}>重置</button>
       </div>
     </section>
     ${simulationControls}
@@ -384,8 +642,63 @@ export function buildInputPanelHtml(state) {
       </div>
       <div class="preset-list">${presetButtons}</div>
     </section>
-    <section id="status-banner" class="status-banner">${state.status === "error" ? state.errorMessage : "就绪"}</section>
+    <section id="status-banner" class="status-banner${
+      state.status === "loading" ? " status-banner--loading" : state.status === "error" ? " status-banner--error" : ""
+    }">${
+      state.status === "error"
+        ? state.errorMessage
+        : state.status === "loading"
+          ? getLoadingBannerContent(state)?.title ?? "运行中..."
+          : "就绪"
+    }</section>
   `;
+}
+
+export function getLoadingBannerContent(state) {
+  if (state.status !== "loading") {
+    return null;
+  }
+  if (state.runMode === "simulation") {
+    return {
+      title: "正在模拟对话与评测",
+      detail: "系统正在生成用户回复、调用被测模型并提交评委打分，通常需要几十秒，请稍候。",
+    };
+  }
+  return {
+    title: "正在运行评测",
+    detail: "正在编译任务指令并执行评测流程，请稍候。",
+  };
+}
+
+function renderLoadingBanner(documentRef, state) {
+  const banner = documentRef.getElementById("demo-loading-banner");
+  const shell = documentRef.getElementById("demo-root");
+  if (!banner) {
+    return;
+  }
+
+  const content = getLoadingBannerContent(state);
+  const isLoading = Boolean(content);
+  banner.hidden = !isLoading;
+  shell?.classList.toggle("is-loading", isLoading);
+
+  if (!content) {
+    return;
+  }
+
+  const title = documentRef.getElementById("loading-banner-title");
+  const detail = documentRef.getElementById("loading-banner-detail");
+  if (title) {
+    title.textContent = content.title;
+  }
+  if (detail) {
+    detail.textContent = content.detail;
+  }
+
+  const runButton = documentRef.getElementById("run-evaluation-button");
+  if (runButton) {
+    runButton.disabled = true;
+  }
 }
 
 export function buildSimulationDialogueHtml(turns) {
@@ -423,6 +736,15 @@ function renderInputPanel(documentRef, state) {
   panel.innerHTML = buildInputPanelHtml(state);
 }
 
+function renderHistoryPanel(documentRef, state) {
+  const list = documentRef.getElementById("history-list");
+  if (!list) {
+    return;
+  }
+  const activeId = state.viewingHistoryId ?? state.lastResult?.evaluation?.run_id ?? state.lastResult?.simulation_id ?? null;
+  list.innerHTML = buildHistoryPanelHtml(state.history, activeId);
+}
+
 function renderResultPanel(documentRef, state) {
   const baseResult = {
     overall_score: 0,
@@ -437,27 +759,46 @@ function renderResultPanel(documentRef, state) {
     run_id: "pending",
     spec_id: "pending",
   };
-  const result = state.lastResult?.evaluation
-    ? { ...baseResult, ...state.lastResult.evaluation, ...state.lastResult }
-    : { ...baseResult, ...(state.lastResult ?? {}) };
+  const displayResult = getDisplayResult(state);
+  const result = displayResult?.evaluation
+    ? { ...baseResult, ...displayResult.evaluation, ...displayResult }
+    : { ...baseResult, ...(displayResult ?? {}) };
 
   documentRef.getElementById("summary-score").textContent = String(result.overall_score ?? 0);
   documentRef.getElementById("summary-confidence").textContent = `置信度 ${Math.round((result.confidence ?? 0) * 100)}%`;
-  documentRef.getElementById("summary-headline").textContent = result.summary ?? result.termination_reason ?? "等待运行";
-  documentRef.getElementById("summary-review-flag").textContent = result.needs_review ? "建议人工复核" : "无需人工复核";
+  documentRef.getElementById("summary-conclusion").innerHTML = buildConclusionHtml(result);
+
+  const reviewFlag = documentRef.getElementById("summary-review-flag");
+  reviewFlag.textContent = result.needs_review ? "建议人工复核" : "无需人工复核";
+  reviewFlag.dataset.status = result.needs_review ? "review" : "ok";
+
+  const historyBanner = documentRef.getElementById("history-view-banner");
+  const historyBackButton = documentRef.getElementById("history-back-button");
+  if (state.viewingHistoryId) {
+    const entry = state.history.find((item) => item.id === state.viewingHistoryId);
+    if (historyBanner) {
+      historyBanner.hidden = false;
+      historyBanner.textContent = entry
+        ? `正在查看历史记录：${entry.scenarioLabel}（${entry.presetLabel}）`
+        : "正在查看历史记录";
+    }
+    if (historyBackButton) {
+      historyBackButton.hidden = false;
+    }
+  } else {
+    if (historyBanner) {
+      historyBanner.hidden = true;
+      historyBanner.textContent = "";
+    }
+    if (historyBackButton) {
+      historyBackButton.hidden = true;
+    }
+  }
 
   const scoreCards = buildScoreCards(result);
   const simulationCards =
-    state.runMode === "simulation" && state.lastResult ? buildSimulationCards(state.lastResult) : [];
-  documentRef.getElementById("scorecard-grid").innerHTML = [
-    ...scoreCards.map(
-      (item) => `<article class="scorecard-item"><p>${item.title}</p><strong>${item.value}</strong></article>`,
-    ),
-    ...simulationCards.map(
-      (item) =>
-        `<article class="scorecard-item simulation-card${item.emphasis ? " summary-highlight" : ""}"><p>${item.title}</p><strong>${item.value}</strong></article>`,
-    ),
-  ].join("");
+    state.runMode === "simulation" && displayResult ? buildSimulationCards(displayResult) : [];
+  documentRef.getElementById("scorecard-grid").innerHTML = buildScorecardHtml(scoreCards, simulationCards);
 
   const sections = buildAccordionSections(result);
   documentRef.getElementById("accordion-evidence").innerHTML = sections.evidence
@@ -475,7 +816,7 @@ function renderResultPanel(documentRef, state) {
   documentRef.getElementById("accordion-json").textContent = sections.rawJson;
 
   const dialoguePanel = documentRef.getElementById("simulation-dialogue-panel");
-  dialoguePanel.innerHTML = buildSimulationDialogueHtml(state.lastResult?.turns ?? []);
+  dialoguePanel.innerHTML = buildSimulationDialogueHtml(displayResult?.turns ?? []);
 
   const resultDetailsPanel = documentRef.getElementById("result-details-panel");
   const resultsButton = documentRef.getElementById("view-mode-results");
@@ -526,7 +867,11 @@ export function bootstrapDemo(documentRef = document, fetchImpl = fetch, storage
   const initial = createInitialState();
   const savedModelConfig = loadModelConfigFromStorage(storage);
   let state = mergeModelConfigIntoState(
-    initial,
+    {
+      ...initial,
+      history: loadEvaluationHistory(storage),
+      viewingHistoryId: null,
+    },
     { ...initial.modelConfig, ...(savedModelConfig ?? {}) },
   );
 
@@ -616,9 +961,66 @@ export function bootstrapDemo(documentRef = document, fetchImpl = fetch, storage
     };
   };
 
+  const bindHistoryPanel = () => {
+    documentRef.querySelectorAll("[data-history-open]").forEach((button) => {
+      button.onclick = () => {
+        state = { ...state, viewingHistoryId: button.dataset.historyOpen };
+        rerender();
+      };
+    });
+
+    documentRef.querySelectorAll("[data-history-delete]").forEach((button) => {
+      button.onclick = (event) => {
+        event.stopPropagation();
+        const historyId = button.dataset.historyDelete;
+        if (!historyId) {
+          return;
+        }
+        if (!globalThis.confirm("确定删除这条评估记录吗？")) {
+          return;
+        }
+        const nextHistory = removeEvaluationHistoryItem(historyId, storage);
+        state = {
+          ...state,
+          history: nextHistory,
+          viewingHistoryId: state.viewingHistoryId === historyId ? null : state.viewingHistoryId,
+        };
+        rerender();
+      };
+    });
+
+    const clearButton = documentRef.getElementById("clear-history-button");
+    if (clearButton) {
+      clearButton.onclick = () => {
+        if (!state.history.length) {
+          return;
+        }
+        if (!globalThis.confirm("确定清空全部历史记录吗？")) {
+          return;
+        }
+        state = {
+          ...state,
+          history: clearEvaluationHistory(storage),
+          viewingHistoryId: null,
+        };
+        rerender();
+      };
+    }
+
+    const backButton = documentRef.getElementById("history-back-button");
+    if (backButton) {
+      backButton.onclick = () => {
+        state = { ...state, viewingHistoryId: null };
+        rerender();
+      };
+    }
+  };
+
   const rerender = () => {
+    renderLoadingBanner(documentRef, state);
     renderInputPanel(documentRef, state);
     renderResultPanel(documentRef, state);
+    renderHistoryPanel(documentRef, state);
     renderModelConfigModal(documentRef, state);
 
     documentRef.getElementById("open-model-config-button").onclick = () => {
@@ -681,16 +1083,22 @@ export function bootstrapDemo(documentRef = document, fetchImpl = fetch, storage
     };
 
     documentRef.getElementById("run-evaluation-button").onclick = async () => {
+      if (state.status === "loading") {
+        return;
+      }
       state = syncStateFromInputs(documentRef, state);
       state = { ...state, status: "loading", errorMessage: "" };
-      documentRef.getElementById("status-banner").textContent =
-        state.runMode === "simulation" ? "模拟运行中..." : "评估运行中...";
+      renderLoadingBanner(documentRef, state);
+      renderInputPanel(documentRef, state);
       try {
         const result = await runSimulationFlow(fetchImpl, state, state.simulationConfig);
+        const historyEntry = createHistoryEntry(state, result, getPresetById);
         state = {
           ...state,
           status: "success",
           lastResult: result,
+          history: appendEvaluationHistory(historyEntry, storage),
+          viewingHistoryId: null,
           rightPanelMode: state.runMode === "simulation" ? "conversation" : "results",
         };
         rerender();
@@ -706,10 +1114,11 @@ export function bootstrapDemo(documentRef = document, fetchImpl = fetch, storage
     };
 
     documentRef.getElementById("export-result-button").onclick = () => {
-      if (!state.lastResult) return;
-      const exportSource = state.lastResult.evaluation ?? state.lastResult;
-      const exportId = exportSource.run_id ?? state.lastResult.simulation_id ?? "result";
-      const blob = new Blob([JSON.stringify(state.lastResult, null, 2)], {
+      const activeResult = getDisplayResult(state);
+      if (!activeResult) return;
+      const exportSource = activeResult.evaluation ?? activeResult;
+      const exportId = exportSource.run_id ?? activeResult.simulation_id ?? "result";
+      const blob = new Blob([JSON.stringify(activeResult, null, 2)], {
         type: "application/json",
       });
       const link = documentRef.createElement("a");
@@ -720,6 +1129,7 @@ export function bootstrapDemo(documentRef = document, fetchImpl = fetch, storage
     };
 
     bindModelModal();
+    bindHistoryPanel();
   };
 
   rerender();

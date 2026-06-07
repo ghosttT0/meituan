@@ -26,9 +26,51 @@ test("buildScoreCards maps dimension scores into dashboard cards", () => {
   assert.equal(cards[4].title, "评分模式");
   assert.equal(cards[4].value, "双评委 + 仲裁");
   assert.equal(cards[5].title, "主评委");
-  assert.equal(cards[5].value, 2);
+  assert.equal(cards[5].value, "2");
+  assert.equal(cards[5].kind, "meta");
   assert.equal(cards[6].title, "仲裁次数");
-  assert.equal(cards[6].value, 1);
+  assert.equal(cards[6].value, "1");
+  assert.equal(cards[0].kind, "dimension");
+});
+
+test("buildScorecardHtml groups dimensions, meta, and simulation details", () => {
+  const html = view.buildScorecardHtml(
+    view.buildScoreCards({
+      dimension_scores: {
+        flow_following: 0.92,
+        task_focus: 0.55,
+      },
+      evaluation_mode: "dual",
+      panel_results: [{ judge_id: "judge_a" }],
+    }),
+    view.buildSimulationCards({
+      scenario_label: "忙碌打断",
+      scenario_focus: ["重点检查是否快速说重点"],
+      scenario_summary: "按主流流程完成评测",
+      profile_id: "busy",
+      termination_reason: "task_complete",
+      state_trace: ["init", "terminated"],
+      generation_mode: "ai",
+      adapter_mode: "http",
+    }),
+  );
+
+  assert.match(html, /scorecard-section-title/);
+  assert.match(html, /维度得分/);
+  assert.match(html, /data-level="good"/);
+  assert.match(html, /data-level="low"/);
+  assert.match(html, /scorecard-meta/);
+  assert.match(html, /模拟信息/);
+  assert.match(html, /simulation-summary/);
+  assert.match(html, /simulation-details/);
+  assert.doesNotMatch(html, /scorecard-item/);
+});
+
+test("getScoreLevel maps numeric scores into visual bands", () => {
+  assert.equal(view.getScoreLevel(90), "good");
+  assert.equal(view.getScoreLevel(70), "mid");
+  assert.equal(view.getScoreLevel(40), "low");
+  assert.equal(view.getScoreLevel("dual"), "neutral");
 });
 
 test("buildAccordionSections returns evidence, rules, judge, and raw json", () => {
@@ -85,6 +127,62 @@ test("buildAccordionSections includes panel judge details and arbitration record
   assert.match(sections.rawJson, /"arbitration_count": 1/);
 });
 
+test("getLoadingBannerContent returns simulation loading copy", () => {
+  const content = view.getLoadingBannerContent({
+    status: "loading",
+    runMode: "simulation",
+  });
+
+  assert.ok(content);
+  assert.match(content.title, /模拟/);
+  assert.match(content.detail, /评委/);
+});
+
+test("getLoadingBannerContent is hidden when idle", () => {
+  assert.equal(view.getLoadingBannerContent({ status: "idle", runMode: "simulation" }), null);
+});
+
+test("buildConclusionHtml renders structured evaluation summary", () => {
+  const html = view.buildConclusionHtml({
+    overall_score: 67.6,
+    summary: "fallback",
+    evaluation_summary: {
+      overall_score: 67.6,
+      grade: "B",
+      task_success_rate: 0.9,
+      efficiency_score: 72,
+      experience_score: 65,
+      robustness_score: 58,
+      key_strengths: ["流程完整"],
+      key_weaknesses: ["解释略短"],
+      improvement_suggestions: ["补充 FAQ 说明"],
+    },
+  });
+
+  assert.match(html, /conclusion-board/);
+  assert.match(html, /主要优点/);
+  assert.match(html, /流程完整/);
+  assert.match(html, /90%/);
+});
+
+test("buildConclusionFromText parses summary text into sections", () => {
+  const html = view.buildConclusionFromText(
+    [
+      "综合评分: 67.6/100 (等级: B)",
+      "各维度得分:",
+      "  任务完成度: 90.0%",
+      "主要优点:",
+      "  - 流程执行完整",
+      "主要问题:",
+      "  - 解释不够充分",
+    ].join("\n"),
+  );
+
+  assert.match(html, /任务完成度/);
+  assert.match(html, /流程执行完整/);
+  assert.match(html, /解释不够充分/);
+});
+
 test("buildInputPanelHtml exposes action hooks for browser binding", () => {
   const markup = view.buildInputPanelHtml({
     mode: "preset",
@@ -95,6 +193,16 @@ test("buildInputPanelHtml exposes action hooks for browser binding", () => {
     conversationText: "agent: 您好",
     status: "idle",
     errorMessage: "",
+    simulationConfig: {
+      adapterType: "http",
+      endpoint: "",
+      scenarioKey: "main_flow",
+      profileId: "cooperative",
+      primaryBranch: "cooperative",
+      batchRuns: 1,
+      randomSeed: 2026,
+      maxTurns: 6,
+    },
   });
 
   assert.match(markup, /id="run-evaluation-button"/);
@@ -156,11 +264,13 @@ test("buildSimulationCards maps simulation metadata into cards", () => {
   assert.equal(cards[0].value, "忙碌打断");
   assert.equal(cards[1].title, "场景重点");
   assert.match(cards[1].value, /说重点/);
-  assert.equal(cards[2].title, "模拟画像");
-  assert.equal(cards[2].value, "忙碌型");
-  assert.equal(cards[3].value, "AI生成");
-  assert.equal(cards[4].value, "真实模型接口");
-  assert.equal(cards[6].value, "3");
+  assert.equal(cards[2].title, "场景摘要");
+  assert.equal(cards[2].emphasis, true);
+  assert.equal(cards[3].title, "模拟画像");
+  assert.equal(cards[3].value, "忙碌型");
+  assert.equal(cards[4].value, "AI生成");
+  assert.equal(cards[5].value, "真实模型接口");
+  assert.equal(cards[7].value, "3");
 });
 
 test("buildAccordionSections includes simulation trace when available", () => {

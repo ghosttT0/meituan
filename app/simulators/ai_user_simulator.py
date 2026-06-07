@@ -11,10 +11,10 @@ class OpenAIUserSimulatorAdapter:
     def __init__(self, client: OpenAI | None = None) -> None:
         settings = get_settings()
         self.client = client or OpenAI(
-            api_key=settings.openai_api_key,
-            base_url=settings.openai_base_url,
+            api_key=settings.simulator_api_key or settings.openai_api_key,
+            base_url=settings.simulator_base_url or settings.openai_base_url,
         )
-        self.model = settings.openai_model
+        self.model = settings.simulator_model or settings.openai_model
 
     def generate_turn(self, prompt: str) -> SimulatedUserReply | None:
         try:
@@ -37,11 +37,18 @@ class OpenAIUserSimulatorAdapter:
                 reply=data["reply"],
                 should_end=bool(data.get("should_end", False)),
             )
-        except Exception:
-            return None
+        except Exception as exc:
+            # 把失败原因暴露出去，让调用方记录到 debug_logs
+            raise RuntimeError(f"用户模拟器调用失败：{exc}") from exc
 
     def _extract_json(self, content: str) -> str:
-        fenced = re.search(r"```(?:json)?\s*(\{.*\})\s*```", content, re.DOTALL)
+        # 优先匹配代码块
+        fenced = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", content, re.DOTALL)
         if fenced:
             return fenced.group(1).strip()
+        # 兜底：找第一个 { 到最后一个 }
+        start = content.find("{")
+        end = content.rfind("}")
+        if start != -1 and end != -1 and end > start:
+            return content[start : end + 1]
         return content.strip()

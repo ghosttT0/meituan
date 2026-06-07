@@ -34,6 +34,8 @@ class TemplateFirstResponseGenerator:
             return "等一下，你先说重点。"
         if intent.action == "say_unsure":
             return "我现在还不太确定，可能明天下午吧。"
+        if intent.action == "ask_task_specific_question" and intent.note:
+            return intent.note
         if intent.action == "answer_slot":
             return "明天下午可以。"
         return "可以，你继续说。"

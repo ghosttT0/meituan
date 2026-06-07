@@ -10,6 +10,7 @@ class UserProfile(BaseModel):
     question_probability: float = 0.0
     reject_probability: float = 0.0
     style_prompt: str = ""
+    persona_note: str = ""  # 画像背景描述，注入 prompt 增强真实感
     preferred_question_sources: list[str] = Field(default_factory=list)
     preferred_question_tags: list[str] = Field(default_factory=list)
     max_question_rounds: int = 1

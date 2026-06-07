@@ -27,11 +27,12 @@ class UserPromptBuilder:
             if all_questions:
                 question_text = "\n".join(f"- {item}" for item in all_questions)
         emotion_hint = EMOTION_PROMPTS.get(emotion, EMOTION_PROMPTS["neutral"])
+        persona_bg = f"\n- 背景：{profile.persona_note}" if profile.persona_note else ""
         return f"""你正在扮演一个接电话的真实用户。
 你不能扮演客服，也不能替客服推进任务。
 
 【用户画像】
-- 画像名称：{profile.name}
+- 画像名称：{profile.name}{persona_bg}
 - 风格约束：{profile.style_prompt or '根据画像自然表达'}
 - 当前情绪：{emotion_hint}
 
@@ -56,7 +57,8 @@ class UserPromptBuilder:
 
 如果模型已经解释清楚，就不要机械重复同一句追问。
 如果模型没有解释清楚，再按照建议意图继续追问或表达阻碍。
-如果建议意图是任务相关追问，请优先围绕上面的任务相关可选问题来问，不要泛泛地重复“为什么必须这样”。
+如果建议意图是任务相关追问，请优先围绕上面的任务相关可选问题来问，不要泛泛地重复”为什么必须这样”。
+如果模型回复中出现 X、N、Y 等大写字母占位符（如”X单”、”N元”），请将其理解为具体数字，不要追问占位符本身的含义。
 请你只站在用户角度回复。
 输出严格使用 JSON：
 {{

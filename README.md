@@ -1,394 +1,200 @@
-# 指令遵循自动评测原型
+# DialEval · 多轮对话指令遵循评测系统
 
-## 项目简介
+针对外呼任务场景，对对话模型的**指令遵循能力**进行可解释、可量化的自动评测。
 
-本项目用于评估外呼任务场景下，对话模型对任务指令的遵循情况。系统围绕“任务指令编译、规则校验、主观打分、结果聚合、模拟评测与页面演示”这条链路，提供一套可运行的原型实现。
+---
 
-当前版本重点解决以下问题：
+## 核心功能
 
-- 将自然语言任务指令编译为结构化评测规范 `Eval Spec`
-- 对外呼对话进行规则校验和主观评分
-- 提供多评委评分机制与仲裁机制
-- 支持离线评测接口与模拟评测接口
-- 提供可直接演示的 Web 页面
+| 模块 | 说明 |
+|---|---|
+| 用户模拟器 | 7种用户画像 + 情绪状态机，模拟真实外呼场景 |
+| 硬规则引擎 | 必需步骤、必需槽位、禁止行为、场景规则（语义感知） |
+| 多评委软评分 | 双评委 + 仲裁机制，对主观维度打分 |
+| 聚合评分 | 硬软双轨加权，支持按任务类型调整权重 |
+| 可解释报告 | 证据链、失效模式分类、改进建议 |
 
-## 主要能力
+---
 
-### 1. 指令编译
+## 评分公式
 
-- 输入原始任务指令
-- 输出结构化 `Eval Spec`
-- 支持保存和查询评测规范
+### 总分
 
-### 2. 离线评测接口
+```
+总分 = hard_score × w_h + soft_score × w_s
+```
 
-- 输入 `Eval Spec` 和对话转写
-- 输出总分、维度分、规则结果、主观评分、证据链和复核标记
-- 支持批量评测并导出汇总文件
+默认 `w_h = 0.7`，`w_s = 0.3`，可通过 `EvalSpec.scoring_policy` 按任务调整。  
+触发 `fatal` 级硬规则（违规承诺）时总分强制归零。
 
-### 3. 多评委评分机制
+---
 
-系统支持三档评分模式：
+### 硬规则得分
 
-- `single`
-  - 单评委模式
-- `dual`
-  - 双评委模式，不启用仲裁
-- `dual_arbitration`
-  - 双评委加仲裁模式，默认模式
+```
+hard_score = Σ(δ_i × w_i) / Σ(w_i) × 100
 
-### 4. 模拟评测
+  δ_i ∈ {0,1}  规则 i 是否通过
+  w_i           规则权重（RuleResult.weight）
+```
 
-- 支持 `mock` 闭环模拟
-- 支持通过 HTTP 接口接入真实被测模型
-- 支持多类用户画像、场景分支和批量模拟
+| 规则 | 权重 | 失败影响 |
+|---|---|---|
+| `required_steps` | 1.0 | 扣分 |
+| `required_slots` | 1.0 | 扣分 |
+| `forbidden_actions` | 1.0 | fatal → 总分归零 |
+| `scenario_faq_grounding` | 2.0 | 扣分 |
+| `scenario_busy_focus` | 1.8 | 扣分 |
+| `scenario_scope_fallback` | 2.2 | 扣分 |
+| `scenario_hesitant_clarity` | 1.9 | 扣分 |
 
-### 5. 演示页面
+场景规则使用 **embedding 语义匹配**，不可用时退回关键词匹配。
 
-- 提供 `/demo` 页面
-- 当前页面只保留模拟模式
-- 支持切换评分机制、被测模型来源、测试场景、用户画像和运行参数
-- 支持查看多评委结果和仲裁记录
+---
+
+### 软评分得分
+
+```
+soft_score = Σ(s_j × w_j) / Σ(w_j) × 100
+
+  s_j ∈ [0,1]  评委对维度 j 的最终共识分
+  w_j           维度权重（SoftDimension.weight）
+```
+
+**多评委流程：**
+
+```
+judge_a (task_alignment)  ──┐
+                             ├── 分歧 ≥ 0.25 ──> judge_c (arbitrator)
+judge_b (experience_risk) ──┘
+```
+
+分歧小于阈值取两个主评委平均分，否则使用仲裁评委结果。
+
+---
+
+### 维度权重（按任务类型）
+
+| task_type | 任务完成度 | 对话效率 | 用户体验 | 鲁棒性 |
+|---|---|---|---|---|
+| `outbound_sign` 催收/签约 | 50% | 20% | 20% | 10% |
+| `survey` 满意度回访 | 20% | 15% | 50% | 15% |
+| `faq_service` FAQ解答 | 35% | 30% | 25% | 10% |
+| `general` 默认 | 40% | 20% | 30% | 10% |
+
+---
+
+### 鲁棒性得分
+
+```
+robustness = 100 - n × 20    （n = 场景规则失败数）
+           = 0               （触发违规承诺）
+```
+
+---
+
+### 置信度
+
+```
+confidence = 0.9
+           - min(|warnings| × 0.1,  0.3)
+           - (1 - agreement)       × 0.4
+           - max(0, 0.7 - c̄_j)    × 0.5
+           - 0.2  （soft_eval_skipped 时）
+
+agreement   = 1 - score_span
+score_span  = 各维度评委评分最大差值的均值
+c̄_j        = 评委自身平均置信度
+```
+
+---
+
+## 用户画像
+
+| 画像 | 特征 | 情绪起点 |
+|---|---|---|
+| `cooperative` 配合型 | 随和，愿意配合 | neutral |
+| `hesitant` 犹豫型 | 担心费用/风险，需解释 | skeptical |
+| `questioning` 追问型 | 连续追问细节 | skeptical |
+| `interrupting` 打断型 | 频繁插话，跳跃 | skeptical |
+| `busy` 忙碌型 | 耐心极低，要求说重点 | resistant |
+| `rejecting` 拒绝型 | 强硬拒绝 | resistant |
+| `uninformed` 信息不对称型 | 记不清签约情况，容易困惑 | neutral |
+
+**情绪演变：** `neutral → skeptical → resistant → rejecting`
+
+- 触发违规承诺 → 直接跳到 `rejecting`
+- 未解释原因 → 按 `patience_level` 概率恶化
+- 充分解释 → 情绪改善
+
+---
+
+## 对话失效模式
+
+| 模式 | 含义 |
+|---|---|
+| `SLOT_ABANDONMENT` | 槽位收集中断 |
+| `FORBIDDEN_PROMISE` | 违规承诺 |
+| `MISSING_FLOW` | 必需步骤缺失 |
+| `TOPIC_DRIFT` | 未回应场景关键信息 |
+| `LOOP_STUTTER` | 同一状态循环超过 2 次 |
+| `ABRUPT_END` | 任务未完成时强制终止 |
+
+---
+
+## 快速开始
+
+```bash
+pip install -e ".[dev]"
+cp .env.example .env   # 见下方配置说明
+uvicorn app.main:app --reload
+pytest tests/
+```
+
+### 环境变量配置
+
+`.env` 文件需要填写以下配置：
+
+```env
+# 评委 LLM（用于软评分和场景规则复核）
+OPENAI_API_KEY=your_key
+OPENAI_BASE_URL=https://api.deepseek.com/v1
+OPENAI_MODEL=deepseek-chat
+
+# 用户模拟器 LLM（未配置时降级使用上面的配置）
+SIMULATOR_API_KEY=your_key
+SIMULATOR_BASE_URL=https://api.deepseek.com/v1
+SIMULATOR_MODEL=deepseek-chat
+```
+
+> **注意：** 评委 LLM 和用户模拟器是系统内部使用的，与**被测模型**完全分开。
+>
+> 被测模型需要在**前端页面**里单独配置：
+> - 打开 Demo 页面后，在「模型接入」区域填写被测模型的 **API Endpoint**、**API Key** 和 **Model Name**
+> - 被测模型可以是任何兼容 OpenAI Chat Completions 协议的服务
+> - 每次运行模拟前确认被测模型地址可访问，否则对话会回退到 Mock 演示模式
+
+### 任务指令占位符
+
+任务指令文本支持以下占位符，系统会在模拟启动时自动替换：
+
+| 占位符 | 说明 |
+|---|---|
+| `${rider_name}` | 随机生成中文骑手姓名 |
+
+---
 
 ## 项目结构
 
-```text
+```
 app/
-  api/            FastAPI 路由
-  core/           配置与日志
-  domain/         领域模型
-  evaluators/     规则引擎与评委逻辑
-  pipeline/       评测主流程
-  reliability/    一致性与置信度
-  reports/        结果汇总与导出
-  simulators/     用户模拟与闭环对话
-  spec/           指令编译器
-  storage/        SQLite 存储
-  web/            Demo 页面静态资源
-
-tests/            Python 与前端函数级测试
-docs/             设计与规划文档
+├── domain/        数据模型（EvalSpec, Conversation, EvaluationResult）
+├── pipeline/      评估流水线（DialogueParser → Rules → Panel → Aggregator）
+├── evaluators/
+│   ├── rules/     硬规则（flow, slot, forbidden, scenario + 语义匹配）
+│   └── judge/     软评分（LLM适配层, PanelJudge）
+├── simulators/    用户模拟器（画像, 情绪引擎, 问题池, 策略引擎）
+├── reliability/   置信度与评委一致性
+├── reports/       评测报告（证据链, 失效模式分类, 摘要）
+└── api/           FastAPI 路由
 ```
-
-## 运行环境
-
-### Python
-
-项目声明要求：
-
-- Python 3.11 及以上
-
-核心依赖见 `pyproject.toml`：
-
-- fastapi
-- uvicorn[standard]
-- pydantic
-- openai
-- httpx
-- python-dotenv
-
-开发测试依赖：
-
-- pytest
-- pytest-cov
-
-### 可选前端测试环境
-
-- Node.js 18 及以上
-
-用于执行 `tests/web/*.test.mjs` 这类前端函数级测试。
-
-## 安装与启动
-
-以下示例以 PowerShell 为例。
-
-### 1. 创建虚拟环境
-
-```powershell
-py -3.11 -m venv .venv
-.\.venv\Scripts\Activate.ps1
-```
-
-### 2. 安装依赖
-
-```powershell
-python -m pip install --upgrade pip
-python -m pip install fastapi "uvicorn[standard]" pydantic openai httpx python-dotenv pytest pytest-cov
-```
-
-### 3. 配置环境变量
-
-复制模板文件：
-
-```powershell
-Copy-Item .env.example .env
-```
-
-然后按需修改 `.env`：
-
-```env
-OPENAI_API_KEY=your-api-key-here
-OPENAI_BASE_URL=https://api.deepseek.com
-OPENAI_MODEL=deepseek-chat
-DATABASE_PATH=instruction_following.db
-JUDGE_RUNS=2
-```
-
-说明：
-
-- 若需要真实主观评分，请配置可用的模型服务
-- 若模型服务不可用，主观评分可能失败，结果更容易被标记为 `needs_review`
-
-### 4. 启动服务
-
-```powershell
-python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-```
-
-启动后可访问：
-
-- 健康检查：`http://127.0.0.1:8000/health`
-- OpenAPI：`http://127.0.0.1:8000/openapi.json`
-- 演示页面：`http://127.0.0.1:8000/demo`
-
-## 核心接口
-
-### 1. 健康检查
-
-```http
-GET /health
-```
-
-### 2. 编译评测规范
-
-```http
-POST /specs/compile
-```
-
-请求示例：
-
-```json
-{
-  "instruction_id": "instr_demo",
-  "name": "确认收货时间",
-  "raw_text": "请先确认用户身份，再确认收货时间，不要承诺一定送达。"
-}
-```
-
-### 3. 保存评测规范
-
-```http
-POST /specs
-```
-
-### 4. 查询评测规范
-
-```http
-GET /specs/{spec_id}
-```
-
-### 5. 单条离线评测
-
-```http
-POST /evaluations/run
-```
-
-请求示例：
-
-```json
-{
-  "evaluation_mode": "dual_arbitration",
-  "spec": {
-    "spec_id": "spec_demo",
-    "instruction_id": "instr_demo",
-    "version": "v1",
-    "task_goal": "确认收货时间",
-    "required_steps": [],
-    "required_slots": [],
-    "soft_dimensions": [
-      {
-        "id": "task_focus",
-        "name": "任务聚焦度",
-        "weight": 1.0,
-        "rubric": ["保持任务推进"]
-      }
-    ]
-  },
-  "conversation": {
-    "conversation_id": "conv_demo",
-    "instruction_id": "instr_demo",
-    "turns": [
-      { "turn_id": 1, "speaker": "agent", "text": "您好，我来确认收货时间" },
-      { "turn_id": 2, "speaker": "user", "text": "明天下午可以" }
-    ]
-  }
-}
-```
-
-返回重点字段：
-
-- `evaluation_mode`
-- `overall_score`
-- `dimension_scores`
-- `judge_results`
-- `panel_results`
-- `arbitration_records`
-- `rule_results`
-- `needs_review`
-
-### 6. 批量评测
-
-```http
-POST /evaluations/batch
-```
-
-### 7. 查询历史评测结果
-
-```http
-GET /evaluations/{run_id}
-```
-
-### 8. 模拟评测
-
-```http
-POST /simulations/run
-```
-
-请求支持：
-
-- `evaluation_mode`
-- `adapter.type = mock | http`
-- `simulation.profile_id`
-- `simulation.primary_branch`
-- `simulation.scenario_key`
-- `simulation.batch_runs`
-- `simulation.random_seed`
-- `simulation.max_turns`
-
-### 9. 模型连通性检查
-
-```http
-POST /simulations/check-model
-```
-
-### 10. 模型列表
-
-```http
-POST /simulations/list-models
-```
-
-## 演示页面说明
-
-访问地址：
-
-```text
-http://127.0.0.1:8000/demo
-```
-
-当前页面特性：
-
-- 页面只保留模拟模式
-- 不再展示离线评测模式切换入口
-- 不再要求手工输入对话转写
-- 对话由系统在模拟过程中自动生成
-
-页面支持配置：
-
-- 评分机制
-  - 单评委
-  - 双评委
-  - 双评委加仲裁
-- 被测模型来源
-  - 真实模型接口
-  - Mock 演示
-- 用户画像
-- 测试场景
-- 主分支
-- 运行次数
-- 随机种子
-- 最大轮次
-
-页面结果区会展示：
-
-- 总分
-- 评分模式
-- 主评委数
-- 仲裁次数
-- 多评委与仲裁详情
-- 场景信息与模拟对话回放
-
-## 多评委模式说明
-
-### single
-
-- 只使用 1 个主评委
-- 不启用仲裁
-- 适合快速试跑
-
-### dual
-
-- 使用 2 个主评委
-- 不启用仲裁
-- 当主观判断冲突时，更容易进入 `needs_review`
-
-### dual_arbitration
-
-- 使用 2 个主评委
-- 分歧较大时触发仲裁评委
-- 当前默认模式
-- 更适合强调公平性与稳健性的场景
-
-## 数据与存储
-
-当前默认使用 SQLite。
-
-数据库初始化位于：
-
-- `app/storage/db.py`
-
-当前主要表：
-
-- `eval_spec`
-- `evaluation_run`
-
-数据库路径由 `.env` 中的 `DATABASE_PATH` 控制。
-
-## 测试
-
-### Python 测试
-
-```powershell
-python -m pytest -q
-```
-
-核心回归可参考：
-
-```powershell
-python -m pytest tests/api/test_evaluations_api.py tests/api/test_simulation_api.py tests/evaluators/test_panel_judge.py tests/reliability/test_confidence.py -q
-```
-
-### 前端函数级验证
-
-```powershell
-node --test tests/web/*.test.mjs
-```
-
-说明：
-
-- 某些受限环境下，Node 原生测试可能受权限限制
-- 这类问题通常是执行环境约束，不一定代表前端逻辑不可用
-
-## 已知事项
-
-- 项目当前仍定位为原型系统
-- 若未配置可用模型服务，主观评分可能降级或失败
-- 完整 Python 回归在某些环境下耗时较长
-- Demo 页面适合内部方案演示、接口联调和策略验证
-
-## 后续可扩展方向
-
-- 更细粒度的评委角色拆分
-- 更丰富的仲裁触发策略
-- 批量评测任务管理
-- 模型评测对比视图
-- 更完整的回归分析与结果看板

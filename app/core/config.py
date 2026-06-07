@@ -17,6 +17,10 @@ class Settings(BaseModel):
     openai_api_key: str = Field(default_factory=lambda: os.getenv("OPENAI_API_KEY", ""))
     openai_base_url: str = Field(default_factory=lambda: os.getenv("OPENAI_BASE_URL", "https://api.deepseek.com"))
     openai_model: str = Field(default_factory=lambda: os.getenv("OPENAI_MODEL", "deepseek-chat"))
+    # 用户模拟器独立配置，未配置时降级使用 openai_* 配置
+    simulator_api_key: str = Field(default_factory=lambda: os.getenv("SIMULATOR_API_KEY", ""))
+    simulator_base_url: str = Field(default_factory=lambda: os.getenv("SIMULATOR_BASE_URL", ""))
+    simulator_model: str = Field(default_factory=lambda: os.getenv("SIMULATOR_MODEL", ""))
 
 
 @lru_cache

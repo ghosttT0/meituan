@@ -32,7 +32,13 @@ def test_demo_page_contains_dashboard_shell_and_accordions() -> None:
         'id="open-model-config-button"',
         'id="model-config-modal"',
         'id="demo-input-panel"',
-        'id="demo-summary-panel"',
+        'id="demo-workspace"',
+        'id="workspace-body"',
+        'id="demo-history-panel"',
+        'id="history-list"',
+        'id="summary-conclusion"',
+        'id="overview-panel"',
+        'id="demo-loading-banner"',
         'id="view-mode-results"',
         'id="view-mode-conversation"',
         'id="simulation-dialogue-panel"',
@@ -51,7 +57,9 @@ def test_demo_styles_include_responsive_dashboard_rules() -> None:
     css = client.get("/demo/assets/demo.css").text
 
     assert ".demo-shell" in css
-    assert "grid-template-columns: 380px minmax(0, 1fr);" in css
+    assert "grid-template-columns: minmax(300px, 0.72fr) minmax(0, 2.5fr) minmax(272px, 0.78fr);" in css
+    assert "height: 100dvh;" in css
+    assert ".workspace-body" in css
     assert "@media (max-width: 1100px)" in css
     assert "--primary: #38bdf8;" in css
 

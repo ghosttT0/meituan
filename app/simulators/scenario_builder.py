@@ -70,7 +70,7 @@ class ScenarioBuilder:
         if requested_profile_id == "random":
             picker = random.Random(random_seed) if random_seed is not None else random
             return picker.choice(
-                ["cooperative", "hesitant", "rejecting", "busy", "interrupting", "questioning"]
+                ["cooperative", "hesitant", "rejecting", "busy", "interrupting", "questioning", "uninformed"]
             )
         if prefer_default:
             return default_profile_id

@@ -21,70 +21,94 @@
         </div>
       </header>
 
+      <section id="demo-loading-banner" class="loading-banner" hidden>
+        <span class="loading-banner__spinner" aria-hidden="true"></span>
+        <div class="loading-banner__text">
+          <strong id="loading-banner-title">正在评测中</strong>
+          <span id="loading-banner-detail">请稍候，系统正在思考与打分。</span>
+        </div>
+      </section>
+
       <main class="demo-main">
-        <aside id="demo-input-panel" class="panel"></aside>
+        <aside id="demo-input-panel" class="panel input-panel"></aside>
 
-        <section id="demo-summary-panel" class="summary-column">
-          <section class="summary-strip">
-            <article class="hero-card">
-              <p class="card-label">总分</p>
-              <div id="summary-score" class="hero-score">--</div>
-              <p id="summary-confidence" class="hero-meta">等待运行</p>
-            </article>
-            <article class="summary-card">
-              <p class="card-label">总体结论</p>
-              <p id="summary-headline">等待运行</p>
-            </article>
-            <article class="summary-card">
-              <p class="card-label">复核状态</p>
-              <p id="summary-review-flag">等待运行</p>
-            </article>
-          </section>
+        <section id="demo-workspace" class="workspace">
+          <div class="workspace-pinned">
+            <p id="history-view-banner" class="history-view-banner" hidden></p>
 
-          <section class="panel view-toggle-panel">
-            <div class="section-header view-toggle-header">
-              <h2>右侧视图</h2>
-              <div class="mode-toggle">
-                <button id="view-mode-results" type="button" data-active="true">评测结果</button>
-                <button id="view-mode-conversation" type="button">模拟对话</button>
+            <details id="overview-panel" class="overview-panel panel" open>
+              <summary class="overview-summary">
+                <span class="overview-summary__label">总分</span>
+                <span id="summary-score" class="overview-score-chip">--</span>
+                <span id="summary-confidence" class="overview-summary-confidence">等待运行</span>
+                <span id="summary-review-flag" class="review-badge review-badge--compact" data-status="ok">等待运行</span>
+              </summary>
+              <div class="overview-body">
+                <p class="card-label">总体结论</p>
+                <div id="summary-conclusion" class="conclusion-body">
+                  <p class="conclusion-empty">运行评测后，总体结论会按维度、优缺点与建议分块展示。</p>
+                </div>
               </div>
-            </div>
-          </section>
+            </details>
 
-          <section id="result-details-panel" class="result-details-panel">
-            <section class="panel">
-              <div class="section-header">
-                <h2>评分卡</h2>
+            <section class="panel view-toggle-panel">
+              <div class="section-header view-toggle-header">
+                <h2>结果视图</h2>
+                <div class="mode-toggle">
+                  <button id="view-mode-results" type="button" data-active="true">评测结果</button>
+                  <button id="view-mode-conversation" type="button">模拟对话</button>
+                </div>
               </div>
-              <div id="scorecard-grid" class="scorecard-grid"></div>
+            </section>
+          </div>
+
+          <div id="workspace-body" class="workspace-body">
+            <section id="result-details-panel" class="result-details-panel">
+              <section class="panel">
+                <div class="section-header">
+                  <h2>评分卡</h2>
+                </div>
+                <div id="scorecard-grid" class="scorecard-panel"></div>
+              </section>
+
+              <section class="accordion-stack">
+                <details data-accordion="evidence" class="accordion-item">
+                  <summary>证据链</summary>
+                  <div id="accordion-evidence" class="accordion-content"></div>
+                </details>
+                <details data-accordion="rules" class="accordion-item">
+                  <summary>规则命中详情</summary>
+                  <div id="accordion-rules" class="accordion-content"></div>
+                </details>
+                <details data-accordion="scenario-rules" class="accordion-item">
+                  <summary>场景附加规则</summary>
+                  <div id="accordion-scenario-rules" class="accordion-content"></div>
+                </details>
+                <details data-accordion="judge" class="accordion-item">
+                  <summary>多评委与仲裁详情</summary>
+                  <div id="accordion-judge" class="accordion-content"></div>
+                </details>
+                <details data-accordion="raw-json" class="accordion-item">
+                  <summary>原始 JSON / 技术细节</summary>
+                  <pre id="accordion-json" class="json-block"></pre>
+                </details>
+              </section>
             </section>
 
-            <section class="accordion-stack">
-              <details data-accordion="evidence" class="accordion-item">
-                <summary>证据链</summary>
-                <div id="accordion-evidence" class="accordion-content"></div>
-              </details>
-              <details data-accordion="rules" class="accordion-item">
-                <summary>规则命中详情</summary>
-                <div id="accordion-rules" class="accordion-content"></div>
-              </details>
-              <details data-accordion="scenario-rules" class="accordion-item">
-                <summary>场景附加规则</summary>
-                <div id="accordion-scenario-rules" class="accordion-content"></div>
-              </details>
-              <details data-accordion="judge" class="accordion-item">
-                <summary>多评委与仲裁详情</summary>
-                <div id="accordion-judge" class="accordion-content"></div>
-              </details>
-              <details data-accordion="raw-json" class="accordion-item">
-                <summary>原始 JSON / 技术细节</summary>
-                <pre id="accordion-json" class="json-block"></pre>
-              </details>
-            </section>
-          </section>
-
-          <section id="simulation-dialogue-panel" class="panel simulation-dialogue-panel"></section>
+            <section id="simulation-dialogue-panel" class="panel simulation-dialogue-panel"></section>
+          </div>
         </section>
+
+        <aside id="demo-history-panel" class="history-panel panel">
+          <div class="history-header">
+            <h2>历史记录</h2>
+            <button id="clear-history-button" type="button" class="ghost-button ghost-button--small">清空</button>
+          </div>
+          <button id="history-back-button" type="button" class="ghost-button history-back-button" hidden>
+            返回当前结果
+          </button>
+          <div id="history-list" class="history-list"></div>
+        </aside>
       </main>
 
       <script type="module" src="/demo/assets/demo-view.js"></script>
